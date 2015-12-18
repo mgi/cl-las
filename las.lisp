@@ -12,6 +12,12 @@
   (npbr-3 0 :binary-type u32)
   (npbr-4 0 :binary-type u32))
 
+(defun number-of-point-by-return (header)
+  (with-slots (number-of-point-by-return) header
+    (mapcar #'(lambda (slot-name)
+                (slot-value number-of-point-by-return slot-name))
+            (binary-record-slot-names 'number-of-point-by-return))))
+
 (define-binary-struct project-id-4 ()
   (pid4-0 0 :binary-type u8)
   (pid4-1 0 :binary-type u8)
@@ -22,8 +28,12 @@
   (pid4-6 0 :binary-type u8)
   (pid4-7 0 :binary-type u8))
 
-(define-binary-class foo ()
-  ((tab :binary-type )))
+(defun project-id-4 (header)
+  (with-slots (project-id-4) header
+    (mapcar #'(lambda (slot-name)
+                (slot-value project-id-4 slot-name))
+            (binary-record-slot-names 'project-id-4))))
+
 (define-binary-class public-header-block ()
   ((file-signature :binary-type (define-binary-string file-signature 4) :initform "LASF")
    (file-source-id :binary-type u16 :initform 0)
