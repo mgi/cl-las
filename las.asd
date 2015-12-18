@@ -6,6 +6,6 @@
   :author "Manuel Giraud <manuel@ledu-giraud.fr>"
   :description "Library to manipulate LAS files"
   :serial t
-  :depends-on (:binary-types)
+  :depends-on (:binary-types :ieee-floats)
   :components ((:file "package")
                (:file "las")))

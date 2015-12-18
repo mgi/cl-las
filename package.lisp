@@ -1,1 +1,1 @@
-(defpackage :las (:use :common-lisp :binary-types))
+(defpackage :las (:use :common-lisp :binary-types :ieee-floats))
