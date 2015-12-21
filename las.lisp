@@ -2,7 +2,7 @@
 
 (setf binary-types:*endian* :little-endian)
 
-(define-binary-string 32-char-string 32)
+(define-null-terminated-string 32-char-string 32)
 (define-unsigned float64 8)
 
 (define-binary-struct number-of-points-by-return ()
@@ -57,7 +57,8 @@
    (file-creation-year :binary-type u16 :initform 0)
    (header-size :binary-type u16 :initform 0)
    (offset-to-point-data :binary-type u32 :initform 0)
-   (number-of-variable-length-records :binary-type u32 :initform 0)
+   (number-of-variable-length-records :binary-type u32 :initform 0
+                                      :accessor number-of-variable-length-records)
    (point-data-format-id :binary-type u8 :initform 0)
    (point-data-record-length :binary-type u16 :initform 0)
    (number-of-point-records :binary-type u32 :initform 0)
@@ -109,11 +110,23 @@
 
 (define-binary-class variable-length-record ()
   ((reserved :binary-type u16 :initform 0)
-   (user-id :binary-type (define-binary-string user-id 16) :initform "")
+   (user-id :binary-type (define-null-terminated-string user-id 16) :initform "")
    (record-id :binary-type u16 :initform 0)
-   (record-length-after-header :binary-type u16 :initform 0)
+   (record-length-after-header :binary-type u16 :initform 0 :accessor record-length-after-header)
    (description :binary-type 32-char-string :initform "")))
+
+(defconstant +variable-length-record-fix-size+ 54)
 
 (defun read-headers (filename)
   (with-open-file (fd filename :element-type '(unsigned-byte 8))
-    (read-binary 'public-header fd)))
+    (let* ((header (read-binary 'public-header fd))
+           (vlrecords (loop with pos = (file-position fd)
+                            with first-vlr = (read-binary 'variable-length-record fd)
+                            for i below (number-of-variable-length-records header)
+                            for vlr = first-vlr then (read-binary 'variable-length-record fd)
+                            do (progn
+                                 (incf pos (+ (record-length-after-header vlr)
+                                              +variable-length-record-fix-size+))
+                                 (file-position fd pos))
+                            collect vlr)))
+      (cons header vlrecords))))
