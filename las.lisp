@@ -4,6 +4,7 @@
 
 (define-null-terminated-string 32-char-string 32)
 (define-unsigned float64 8)
+(define-unsigned float32 4)
 
 (define-binary-struct number-of-points-by-return ()
   (npbr-0 0 :binary-type u32)
@@ -56,10 +57,10 @@
    (file-creation-doy :binary-type u16 :initform 0)
    (file-creation-year :binary-type u16 :initform 0)
    (header-size :binary-type u16 :initform 0)
-   (offset-to-point-data :binary-type u32 :initform 0)
+   (offset-to-point-data :binary-type u32 :initform 0 :reader offset-to-point-data)
    (number-of-variable-length-records :binary-type u32 :initform 0
                                       :accessor number-of-variable-length-records)
-   (point-data-format-id :binary-type u8 :initform 0)
+   (point-data-format-id :binary-type u8 :initform 0 :reader point-data-format-id)
    (point-data-record-length :binary-type u16 :initform 0)
    (number-of-point-records :binary-type u32 :initform 0)
    (number-of-points-by-return :binary-type number-of-points-by-return
@@ -78,27 +79,27 @@
    (min-z :binary-type float64 :initform 0 :accessor min-z)
    (start-of-waveform-data-packet :binary-type u64 :initform 0)))
 
-(defmacro def-float64-accessor (name)
-  (let ((header (gensym))
+(defmacro def-float64-accessor (class slot)
+  (let ((object (gensym))
         (val (gensym)))
     `(progn
-       (defmethod ,name ((,header public-header))
-         (decode-float64 (slot-value ,header ',name)))
-       (defmethod (setf ,name) (,val (,header public-header))
-         (setf (slot-value ,header ',name) (encode-float64 ,val))))))
+       (defmethod ,slot ((,object ,class))
+         (decode-float64 (slot-value ,object ',slot)))
+       (defmethod (setf ,slot) (,val (,object ,class))
+         (setf (slot-value ,object ',slot) (encode-float64 ,val))))))
 
-(def-float64-accessor x-scale)
-(def-float64-accessor y-scale)
-(def-float64-accessor z-scale)
-(def-float64-accessor x-offset)
-(def-float64-accessor y-offset)
-(def-float64-accessor z-offset)
-(def-float64-accessor max-x)
-(def-float64-accessor max-y)
-(def-float64-accessor max-z)
-(def-float64-accessor min-x)
-(def-float64-accessor min-y)
-(def-float64-accessor min-z)
+(def-float64-accessor public-header x-scale)
+(def-float64-accessor public-header y-scale)
+(def-float64-accessor public-header z-scale)
+(def-float64-accessor public-header x-offset)
+(def-float64-accessor public-header y-offset)
+(def-float64-accessor public-header z-offset)
+(def-float64-accessor public-header max-x)
+(def-float64-accessor public-header max-y)
+(def-float64-accessor public-header max-z)
+(def-float64-accessor public-header min-x)
+(def-float64-accessor public-header min-y)
+(def-float64-accessor public-header min-z)
 
 (defun scaled-min-max-z (header)
   (with-accessors ((min min-z)
@@ -117,16 +118,136 @@
 
 (defconstant +variable-length-record-fix-size+ 54)
 
-(defun read-headers (filename)
+(defun read-headers (fd)
+  (let* ((header (read-binary 'public-header fd))
+         (vlrecords (loop with pos = (file-position fd)
+                          with first-vlr = (read-binary 'variable-length-record fd)
+                          for i below (number-of-variable-length-records header)
+                          for vlr = first-vlr then (read-binary 'variable-length-record fd)
+                          do (progn
+                               (incf pos (+ (record-length-after-header vlr)
+                                            +variable-length-record-fix-size+))
+                               (file-position fd pos))
+                          collect vlr)))
+    (values header vlrecords)))
+
+(define-binary-class point-data ()
+  ((x :binary-type s32 :initform 0)
+   (y :binary-type s32 :initform 0)
+   (z :binary-type s32 :initform 0)
+   (intensity :binary-type u16 :initform 0)
+   (gloubiboulga :binary-type u8 :initform 0)
+   (classification :binary-type u8 :initform 0)
+   (scan-angle-rank :binary-type s8 :initform 0)
+   (user-data :binary-type u8 :initform 0)
+   (point-source-id :binary-type u16 :initform 0)))
+
+(defmethod return-number ((p point-data))
+  (with-slots (gloubiboulga) p
+    (ldb (byte 3 0) gloubiboulga)))
+
+(defmethod (setf return-number) (value (p point-data))
+  (with-slots (gloubiboulga) p
+    (setf (ldb (byte 3 0) gloubiboulga) value)))
+
+(defmethod number-of-returns ((p point-data))
+  (with-slots (gloubiboulga) p
+    (ldb (byte 3 3) gloubiboulga)))
+
+(defmethod (setf number-of-returns) (value (p point-data))
+  (with-slots (gloubiboulga) p
+    (setf (ldb (byte 3 3) gloubiboulga) value)))
+
+(defmethod scan-direction-flag ((p point-data))
+  (with-slots (gloubiboulga) p
+    (if (zerop (ldb (byte 1 6) gloubiboulga))
+        'negative-scan
+        'positive-scan)))
+
+(defmethod (setf scan-direction-flag) (value (p point-data))
+  (with-slots (gloubiboulga) p
+    (setf (ldb (byte 1 6) gloubiboulga) (ecase value
+                                          (positive-scan 1)
+                                          (negative-scan 0)))))
+
+(defmethod edge-of-flight-line-p ((p point-data))
+  (with-slots (gloubiboulga) p
+    (= 1 (ldb (byte 1 7) gloubiboulga))))
+
+(defmethod (setf edge-of-flight-line-p) (value (p point-data))
+  (with-slots (gloubiboulga) p
+    (setf (ldb (byte 1 7) gloubiboulga) (if value 1 0))))
+
+(defparameter *asprs-classification*
+  '(created unclassified ground
+    low-vegetation medium-vegetation high-vegetation
+    building low-point key-point water
+    reserved reserved overlap-point))
+
+(defmethod classification ((p point-data))
+  (with-slots (classification) p
+    (let ((value (ldb (byte 5 0) classification)))
+      (if (< value (length *asprs-classification*))
+          (elt *asprs-classification* value)
+          'reserved))))
+
+(defmethod (setf classification) (value (p point-data))
+  (with-slots (classification) p
+    (let ((pos (position value *asprs-classification*)))
+      (when pos
+        (setf (ldb (byte 5 0) classification) pos)))))
+
+(define-binary-class point-data-gps ()
+  ((gps-time :binary-type float64 :initform 0 :accessor gps-time)))
+
+(def-float64-accessor point-data-gps gps-time)
+
+(define-binary-class point-data-color (point-data)
+  ((red :binary-type u16 :initform 0)
+   (green :binary-type u16 :initform 0)
+   (blue :binary-type u16 :initform 0)))
+
+(define-binary-class point-data-color-gps (point-data-color)
+  ((gps-time :binary-type float64 :initform 0 :accessor gps-time)))
+
+(def-float64-accessor point-data-color-gps gps-time)
+
+(define-binary-class point-data-gps-waveform ()
+  ((x :binary-type s32 :initform 0)
+   (y :binary-type s32 :initform 0)
+   (z :binary-type s32 :initform 0)
+   (intensity :binary-type u16 :initform 0)
+   (gloubiboulga :binary-type u8 :initform 0)
+   (classification :binary-type u8 :initform 0)
+   (scan-angle-rank :binary-type s8 :initform 0)
+   (user-data :binary-type u8 :initform 0)
+   (point-source-id :binary-type u16 :initform 0)
+   (gps-time :binary-type float64 :initform 0 :accessor gps-time)
+   (wave-packet-descriptor-index :binary-type u8 :initform 0)
+   (byte-offset-to-waveform :binary-type u64 :initform 0)
+   (waveform-packet-size :binary-type u32 :initform 0)
+   (return-point-waveform-location :binary-type float32 :initform 0)
+   (x-t :binary-type float32 :initform 0)
+   (y-t :binary-type float32 :initform 0)
+   (z-t :binary-type float32 :initform 0)))
+
+;; (defmethod print-object ((p point-data-gps-waveform) stream)
+;;   (with-slots (x y z) p
+;;     (print-unreadable-object (p stream)
+;;       (format stream "~d ~d ~d" x y z))))
+
+(defparameter *point-data-classes*
+  '(point-data
+    point-data-gps
+    point-data-color
+    point-data-color-gps
+    point-data-gps-waveform
+    point-data-color-gps-waveform))
+
+(defun read-first-point (filename)
   (with-open-file (fd filename :element-type '(unsigned-byte 8))
-    (let* ((header (read-binary 'public-header fd))
-           (vlrecords (loop with pos = (file-position fd)
-                            with first-vlr = (read-binary 'variable-length-record fd)
-                            for i below (number-of-variable-length-records header)
-                            for vlr = first-vlr then (read-binary 'variable-length-record fd)
-                            do (progn
-                                 (incf pos (+ (record-length-after-header vlr)
-                                              +variable-length-record-fix-size+))
-                                 (file-position fd pos))
-                            collect vlr)))
-      (cons header vlrecords))))
+    (let ((h (read-headers fd)))
+      (file-position fd (offset-to-point-data h))
+      (loop with point-class = (elt *point-data-classes* (point-data-format-id h))
+            for i below 10
+            collect (read-binary point-class fd)))))
