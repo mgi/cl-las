@@ -177,11 +177,14 @@
             collect (read-value point-class fd)))))
 
 (defun gp-points (lasfile outfile n)
-  (with-open-file (fd outfile :direction :output
-                               :if-exists :supersede
-                               :if-does-not-exist :create)
-    (labels ((pp-point (point)
-               (with-slots (x y z) point
-                 (format fd "~&~d ~d ~d~%" x y z))
-               point))
-      (mapcar #'pp-point (read-some-points lasfile n)))))
+  (with-open-file (in lasfile :element-type '(unsigned-byte 8))
+    (with-open-file (out outfile :direction :output
+                                 :if-exists :supersede
+                                 :if-does-not-exist :create)
+      (let ((h (read-headers in)))
+        (file-position in (offset-to-point-data h))
+        (loop with point-class = (elt *point-data-classes* (point-data-format-id h))
+              for i below n
+              for point = (read-value point-class in)
+              do (with-slots (x y z) point
+                   (format out "~&~d ~d ~d~%" x y z)))))))
