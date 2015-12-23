@@ -113,6 +113,25 @@
   (with-slots (gloubiboulga) p
     (setf (ldb (byte 1 7) gloubiboulga) (if value 1 0))))
 
+(defparameter *asprs-classification*
+  '(created unclassified ground
+    low-vegetation medium-vegetation high-vegetation
+    building low-point key-point water
+    reserved reserved overlap-point))
+
+(defmethod classification ((p point-data))
+  (with-slots (classification) p
+    (let ((value (ldb (byte 5 0) classification)))
+      (if (< value (length *asprs-classification*))
+          (elt *asprs-classification* value)
+          'reserved))))
+
+(defmethod (setf classification) (value (p point-data))
+  (with-slots (classification) p
+    (let ((pos (position value *asprs-classification*)))
+      (when pos
+        (setf (ldb (byte 5 0) classification) pos)))))
+
 (define-binary-class gps-mixin ()
   ((gps-time float8)))
 
@@ -156,3 +175,13 @@
       (loop with point-class = (elt *point-data-classes* (point-data-format-id h))
             for i below n
             collect (read-value point-class fd)))))
+
+(defun gp-points (lasfile outfile n)
+  (with-open-file (fd outfile :direction :output
+                               :if-exists :supersede
+                               :if-does-not-exist :create)
+    (labels ((pp-point (point)
+               (with-slots (x y z) point
+                 (format fd "~&~d ~d ~d~%" x y z))
+               point))
+      (mapcar #'pp-point (read-some-points lasfile n)))))
