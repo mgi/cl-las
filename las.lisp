@@ -77,6 +77,42 @@
    (user-data u1)
    (point-source-id u2)))
 
+(defmethod return-number ((p point-data))
+  (with-slots (gloubiboulga) p
+    (ldb (byte 3 0) gloubiboulga)))
+
+(defmethod (setf return-number) (value (p point-data))
+  (with-slots (gloubiboulga) p
+    (setf (ldb (byte 3 0) gloubiboulga) value)))
+
+(defmethod number-of-returns ((p point-data))
+  (with-slots (gloubiboulga) p
+    (ldb (byte 3 3) gloubiboulga)))
+
+(defmethod (setf number-of-returns) (value (p point-data))
+  (with-slots (gloubiboulga) p
+    (setf (ldb (byte 3 3) gloubiboulga) value)))
+
+(defmethod scan-direction ((p point-data))
+  (with-slots (gloubiboulga) p
+    (if (zerop (ldb (byte 1 6) gloubiboulga))
+        'negative-scan
+        'positive-scan)))
+
+(defmethod (setf scan-direction) (value (p point-data))
+  (with-slots (gloubiboulga) p
+    (setf (ldb (byte 1 6) gloubiboulga) (ecase value
+                                          (positive-scan 1)
+                                          (negative-scan 0)))))
+
+(defmethod edge-of-flight-line-p ((p point-data))
+  (with-slots (gloubiboulga) p
+    (= 1 (ldb (byte 1 7) gloubiboulga))))
+
+(defmethod (setf edge-of-flight-line-p) (value (p point-data))
+  (with-slots (gloubiboulga) p
+    (setf (ldb (byte 1 7) gloubiboulga) (if value 1 0))))
+
 (define-binary-class gps-mixin ()
   ((gps-time float8)))
 
@@ -113,10 +149,10 @@
     point-data-gps-waveform
     point-data-color-gps-waveform))
 
-(defun read-first-point (filename)
+(defun read-some-points (filename n)
   (with-open-file (fd filename :element-type '(unsigned-byte 8))
     (let ((h (read-headers fd)))
       (file-position fd (offset-to-point-data h))
       (loop with point-class = (elt *point-data-classes* (point-data-format-id h))
-            for i below 10
+            for i below n
             collect (read-value point-class fd)))))
