@@ -27,7 +27,7 @@
    (number-of-variable-length-records u4)
    (point-data-format-id u1)
    (point-data-record-length u2)
-   (number-of-point-records u4)
+   (number-of-points u4)
    (number-of-points-by-return (vector :size 5 :type 'u4))
    (x-scale float8)
    (y-scale float8)
@@ -54,17 +54,18 @@
 
 (defun read-headers (fd)
   (let* ((header (read-value 'public-header fd))
-         (vlrecords (loop with pos = (file-position fd)
-                          with first-vlr = (read-value 'variable-length-record fd)
-                          for i below (number-of-variable-length-records header)
-                          for vlr = first-vlr then (read-value 'variable-length-record fd)
-                          do (progn
-                               (incf pos (+ (record-length-after-header vlr)
-                                            +variable-length-record-fix-size+))
-                               (file-position fd pos))
-                          collect vlr)))
+         (vlrecords
+           (do ((pos (file-position fd) (+ pos
+                                           (record-length-after-header vlr)
+                                           +variable-length-record-fix-size+))
+                (vlr (read-value 'variable-length-record fd)
+                     (read-value 'variable-length-record fd))
+                (i 0 (1+ i))
+                res)
+               ((= i (number-of-variable-length-records header)) (nreverse res))
+             (push vlr res)
+             (file-position fd pos))))
     (values header vlrecords)))
-
 
 (define-binary-class point-data ()
   ((x s4)
@@ -168,23 +169,20 @@
     point-data-gps-waveform
     point-data-color-gps-waveform))
 
-(defun read-some-points (filename n)
-  (with-open-file (fd filename :element-type '(unsigned-byte 8))
-    (let ((h (read-headers fd)))
-      (file-position fd (offset-to-point-data h))
-      (loop with point-class = (elt *point-data-classes* (point-data-format-id h))
-            for i below n
-            collect (read-value point-class fd)))))
-
-(defun gp-points (lasfile outfile n)
+(defun gp-points (lasfile outfile &optional n)
   (with-open-file (in lasfile :element-type '(unsigned-byte 8))
     (with-open-file (out outfile :direction :output
                                  :if-exists :supersede
                                  :if-does-not-exist :create)
-      (let ((h (read-headers in)))
+      (let* ((h (read-headers in))
+             (point-class (elt *point-data-classes* (point-data-format-id h))))
         (file-position in (offset-to-point-data h))
-        (loop with point-class = (elt *point-data-classes* (point-data-format-id h))
-              for i below n
-              for point = (read-value point-class in)
-              do (with-slots (x y z) point
-                   (format out "~&~d ~d ~d~%" x y z)))))))
+        (dotimes (i (or n (number-of-points h)))
+          (let ((point (read-value point-class in)))
+            (with-accessors ((x x)
+                             (y y)
+                             (z z)
+                             (intensity intensity)
+                             (gps-time gps-time)
+                             (return-number return-number)) point
+              (format out "~&~d ~d ~d ~d ~f ~d~%" x y z intensity gps-time return-number))))))))
