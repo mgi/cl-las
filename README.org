@@ -1,0 +1,4 @@
+This Common Lisp library gives a basic access to the /de facto/
+standard LAS files as defined here:
+
+http://www.asprs.org/Committee-General/LASer-LAS-File-Format-Exchange-Activities.html
