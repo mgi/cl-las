@@ -68,30 +68,15 @@
     (values header vlrecords)))
 
 (define-binary-class point-data ()
-  ((x-raw s4)
-   (y-raw s4)
-   (z-raw s4)
+  ((x s4)
+   (y s4)
+   (z s4)
    (intensity u2)
    (gloubiboulga u1)
    (classification u1)
    (scan-angle-rank s1)
    (user-data u1)
    (point-source-id u2)))
-
-(defmethod x ((p point-data) &optional (header *current-public-header*))
-  (with-slots (x-raw) p
-    (with-slots (x-scale x-offset) header
-      (+ x-offset (* x-raw x-scale)))))
-
-(defmethod y ((p point-data) &optional (header *current-public-header*))
-  (with-slots (y-raw) p
-    (with-slots (y-scale y-offset) header
-      (+ y-offset (* y-raw y-scale)))))
-
-(defmethod z ((p point-data) &optional (header *current-public-header*))
-  (with-slots (z-raw) p
-    (with-slots (z-scale z-offset) header
-      (+ z-offset (* z-raw z-scale)))))
 
 (defmethod return-number ((p point-data))
   (with-slots (gloubiboulga) p
@@ -172,9 +157,9 @@
 (define-binary-class point-data-color-gps-waveform (waveform-mixin gps-mixin color-mixin point-data) ())
 
 (defmethod print-object ((p point-data) stream)
-  (with-slots (x-raw y-raw z-raw) p
+  (with-accessors ((x x) (y y) (z z)) p
     (print-unreadable-object (p stream)
-      (format stream "~d ~d ~d" x-raw y-raw z-raw))))
+      (format stream "~d ~d ~d" x y z))))
 
 (defparameter *point-data-classes*
   '(point-data
@@ -184,30 +169,68 @@
     point-data-gps-waveform
     point-data-color-gps-waveform))
 
-(defvar *current-public-header* nil)
-(defvar *current-point-class* nil)
+(defclass las ()
+  ((%stream :initarg :stream :reader las-stream)
+   (%header :accessor las-public-header)
+   (%vlrecords :accessor las-variable-length-records)
+   (%point-class :accessor las-point-class)))
 
-(defun read-point (stream)
-  (read-value *current-point-class* stream))
+(defun make-las (stream)
+  (make-instance 'las :stream stream))
 
-(defmacro with-las ((stream filename) &body body)
-  `(with-open-file (,stream ,filename :element-type '(unsigned-byte 8))
-     (let* ((*current-public-header* (read-headers ,stream))
-            (*current-point-class* (elt *point-data-classes* (point-data-format-id *current-public-header*))))
-       (file-position ,stream (offset-to-point-data *current-public-header*))
-       ,@body)))
+(defmethod initialize-instance :after ((object las) &key)
+  (let ((stream (las-stream object)))
+    (when (streamp stream)
+      (file-position stream 0)
+      (with-accessors ((public-header las-public-header)
+                       (vlrecords las-variable-length-records)
+                       (point-class las-point-class)) object
+        (multiple-value-bind (pheader vlrs) (read-headers stream)
+          ;; go to data point in stream
+          (file-position stream (offset-to-point-data pheader))
+          ;; fill missing slots
+          (setf public-header pheader
+                vlrecords vlrs
+                point-class (elt *point-data-classes* (point-data-format-id pheader))))))))
 
-(defun gp-points (lasfile outfile &optional n)
+(defun read-point (las &key scale)
+  (let ((p (read-value (las-point-class las) (las-stream las))))
+    (when scale
+      (with-accessors ((x x) (y y) (z z)) p
+        (with-accessors ((x-scale x-scale) (x-offset x-offset)
+                         (y-scale y-scale) (y-offset y-offset)
+                         (z-scale z-scale) (z-offset z-offset)) (las-public-header las)
+          (setf x (+ x-offset (* x x-scale))
+                y (+ y-offset (* y y-scale))
+                z (+ z-offset (* z z-scale))))))
+    p))
+
+(defmacro with-las ((las filename) &body body)
+  (alexandria:with-gensyms (stream abort)
+    `(let ((,stream (open ,filename :element-type '(unsigned-byte 8)))
+           (,abort t))
+       (unwind-protect
+            (multiple-value-prog1
+                (let ((,las (make-las ,stream)))
+                  ,@body)
+              (setq ,abort nil))
+         (when ,stream (close ,stream :abort ,abort))))))
+
+(defmethod las-number-of-points ((object las))
+  (number-of-points (las-public-header object)))
+
+(defun las-to-txt (lasfile outfile &optional n)
+  "Example of text convertion."
   (with-open-file (out outfile :direction :output
                                :if-exists :supersede
                                :if-does-not-exist :create)
     (with-las (in lasfile)
-      (dotimes (i (or n (number-of-points *current-public-header*)))
+      (dotimes (i (or n (las-number-of-points in)))
         (with-accessors ((x x)
                          (y y)
                          (z z)
                          (intensity intensity)
                          (gps-time gps-time)
-                         (return-number return-number)) (read-point in)
+                         (return-number return-number)) (read-point in :scale t)
           (format out "~&~f ~f ~f ~d ~f ~d~%" x y z
-                      intensity gps-time return-number))))))
+                  intensity gps-time return-number))))))
