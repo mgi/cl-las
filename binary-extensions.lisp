@@ -34,15 +34,17 @@
   (:reader (in)
            (loop with value = 0
                  with bits-per-byte = 8
-                 with decoder = (ecase bytes (4 #'decode-float32) (8 #'decode-float64))
+                 with decoder = (ecase bytes
+                                  (4 #'ieee-floats:decode-float32)
+                                  (8 #'ieee-floats:decode-float64))
                  for low-bit from 0 to (* bits-per-byte (1- bytes)) by bits-per-byte
                  do (setf (ldb (byte bits-per-byte low-bit) value) (read-byte in))
                  finally (return (funcall decoder value))))
   (:writer (out value)
            (loop with bits-per-byte = 8
                  with encoded-value = (ecase bytes
-                                        (4 (encode-float32 value))
-                                        (8 (encode-float64 value)))
+                                        (4 (ieee-floats:encode-float32 value))
+                                        (8 (ieee-floats:encode-float64 value)))
                  for low-bit from 0 to (* bits-per-byte (1- bytes)) by bits-per-byte
                  do (write-byte (ldb (byte bits-per-byte low-bit) encoded-value) out))))
 
@@ -67,7 +69,7 @@
 ;; (define-bitfield foo (u2)
 ;;   ((a 0) (b 1)))
 (defmacro define-bitfield (name (type) &rest mapping)
-  (with-gensyms (in out value symbol bit encval)
+  (alexandria:with-gensyms (in out value symbol bit encval)
     `(define-binary-type ,name ()
        (:reader (,in)
                 (let ((,value (read-value ',type ,in)))

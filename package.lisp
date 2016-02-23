@@ -1,5 +1,5 @@
-(defpackage :las (:use
-                  :common-lisp
-                  :alexandria
-                  :com.gigamonkeys.binary-data
-                  :ieee-floats))
+(defpackage :las
+  (:use #:common-lisp #:com.gigamonkeys.binary-data)
+  (:export
+   #:read-point
+   #:with-las))
