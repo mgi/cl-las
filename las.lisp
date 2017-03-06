@@ -9,7 +9,7 @@
 
 (define-binary-type 32char-string () (8bit-string :length 32 :terminator #\Nul))
 
-(define-binary-class public-header ()
+(define-binary-class public-header-legacy ()
   ((file-signature (8bit-string :length 4 :terminator #\Nul))
    (file-source-id u2)
    (global-encoding global-encoding)
@@ -28,8 +28,8 @@
    (number-of-variable-length-records u4)
    (point-data-format-id u1)
    (point-data-record-length u2)
-   (number-of-points u4)
-   (number-of-points-by-return (vector :size 5 :type 'u4))
+   (%legacy-number-of-points u4)
+   (%legacy-number-of-points-by-return (vector :size 5 :type 'u4))
    (x-scale float8)
    (y-scale float8)
    (z-scale float8)
@@ -44,6 +44,32 @@
    (min-z float8)
    (start-of-waveform-data-packet u8)))
 
+(define-binary-class public-header (public-header-legacy)
+  ((start-of-first-extended-vlr u8)
+   (number-of-extended-vlr u4)
+   (%number-of-points u8)
+   (%number-of-points-by-return (vector :size 15 :type 'u8))))
+
+(defgeneric number-of-points (header)
+  (:documentation "Unified number of points between legacy 32bit
+  version and new 64bit one."))
+
+(defmethod number-of-points ((header public-header-legacy))
+  (%legacy-number-of-points header))
+
+(defmethod number-of-points ((header public-header))
+  (%number-of-points header))
+
+(defgeneric number-of-points-by-return (header)
+  (:documentation "Unified number of points by return between legacy
+  and new."))
+
+(defmethod number-of-points-by-return ((header public-header-legacy))
+  (%legacy-number-of-points-by-return header))
+
+(defmethod number-of-points-by-return ((header public-header))
+  (%number-of-points-by-return header))
+
 (define-binary-class variable-length-record ()
   ((reserved u2)
    (user-id (8bit-string :length 16 :terminator #\Nul))
@@ -53,8 +79,17 @@
 
 (defconstant +variable-length-record-fix-size+ 54)
 
+(defun read-public-header (fd)
+  (file-position fd 0)
+  (let ((h (read-value 'public-header fd)))
+    (cond ((and (= (version-major h) 1)
+		(< (version-minor h) 4))
+	   (file-position fd 0)
+	   (read-value 'public-header-legacy fd))
+	  (t h))))
+
 (defun read-headers (fd)
-  (let* ((header (read-value 'public-header fd))
+  (let* ((header (read-public-header fd))
          (vlrecords
            (do ((pos (file-position fd) (+ pos
                                            (record-length-after-header vlr)
@@ -182,7 +217,6 @@
 (defmethod initialize-instance :after ((object las) &key)
   (let ((stream (las-stream object)))
     (when (streamp stream)
-      (file-position stream 0)
       (with-accessors ((public-header las-public-header)
                        (vlrecords las-variable-length-records)
                        (point-class las-point-class)) object
