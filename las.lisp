@@ -79,8 +79,6 @@
    (record-length-after-header u2)
    (description 32char-string)))
 
-(defconstant +variable-length-record-fix-size+ 54)
-
 (defun read-public-header (fd)
   (file-position fd 0)
   (let ((h (read-value 'public-header fd)))
@@ -97,16 +95,14 @@
 (defun read-headers (fd)
   (let* ((header (read-public-header fd))
          (vlrecords
-           (do ((pos (file-position fd) (+ pos
-                                           (record-length-after-header vlr)
-                                           +variable-length-record-fix-size+))
-                (vlr (read-value 'variable-length-record fd)
+           (do ((vlr (read-value 'variable-length-record fd)
                      (read-value 'variable-length-record fd))
                 (i 0 (1+ i))
                 res)
                ((= i (number-of-variable-length-records header)) (nreverse res))
              (push vlr res)
-             (file-position fd pos))))
+	     (let ((pos (+ (file-position fd) (record-length-after-header vlr))))
+	       (file-position fd pos)))))
     (values header vlrecords)))
 
 (define-binary-class point-data ()
