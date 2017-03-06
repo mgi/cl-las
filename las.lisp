@@ -116,6 +116,15 @@
    (user-data u1)
    (point-source-id u2)))
 
+(defgeneric return-number (point))
+(defgeneric (setf return-number) (value point))
+(defgeneric number-of-returns (point))
+(defgeneric (setf number-of-returns) (value point))
+(defgeneric scan-direction (point))
+(defgeneric (setf scan-direction) (value point))
+(defgeneric edge-of-flight-line-p (point))
+(defgeneric (setf edge-of-flight-line-p) (value point))
+
 (defmethod return-number ((p point-data))
   (with-slots (gloubiboulga) p
     (ldb (byte 3 0) gloubiboulga)))
@@ -162,7 +171,7 @@
   (with-slots (classification) p
     (let ((value (ldb (byte 5 0) classification)))
       (if (< value (length *asprs-classification*))
-          (elt *asprs-classification* value)
+          (nth value *asprs-classification*)
           'reserved))))
 
 (defmethod (setf classification) (value (p point-data))
@@ -171,6 +180,90 @@
       (when pos
         (setf (ldb (byte 5 0) classification) pos)))))
 
+(define-binary-class new-point-data ()
+  ((x s4)
+   (y s4)
+   (z s4)
+   (intensity u2)
+   (gloubiboulga u2)
+   (classification u1)
+   (user-data u1)
+   (scan-angle s2)
+   (point-source-id u2)
+   (gps-time float8)))
+
+(defmethod return-number ((p new-point-data))
+  (with-slots (gloubiboulga) p
+    (ldb (byte 4 0) gloubiboulga)))
+
+(defmethod (setf return-number) (value (p new-point-data))
+  (with-slots (gloubiboulga) p
+    (setf (ldb (byte 4 0) gloubiboulga) value)))
+
+(defmethod number-of-returns ((p new-point-data))
+  (with-slots (gloubiboulga) p
+    (ldb (byte 4 4) gloubiboulga)))
+
+(defmethod (setf number-of-returns) (value (p new-point-data))
+  (with-slots (gloubiboulga) p
+    (setf (ldb (byte 4 4) gloubiboulga) value)))
+
+(defmethod classification-flags ((p new-point-data))
+  (with-slots (gloubiboulga) p
+    (ldb (byte 4 8) gloubiboulga)))
+
+(defmethod (setf classification-flags) (value (p new-point-data))
+  (with-slots (gloubiboulga) p
+    (setf (ldb (byte 4 8) gloubiboulga) value)))
+
+(defmethod scanner-channel ((p new-point-data))
+  (with-slots (gloubiboulga) p
+    (ldb (byte 2 12) gloubiboulga)))
+
+(defmethod (setf scanner-channel) (value (p new-point-data))
+  (with-slots (gloubiboulga) p
+    (setf (ldb (byte 2 12) gloubiboulga) value)))
+
+(defmethod scan-direction ((p new-point-data))
+  (with-slots (gloubiboulga) p
+    (if (zerop (ldb (byte 1 14) gloubiboulga))
+        'negative-scan
+        'positive-scan)))
+
+(defmethod (setf scan-direction) (value (p new-point-data))
+  (with-slots (gloubiboulga) p
+    (setf (ldb (byte 1 14) gloubiboulga) (ecase value
+					   (positive-scan 1)
+					   (negative-scan 0)))))
+
+(defmethod edge-of-flight-line-p ((p new-point-data))
+  (with-slots (gloubiboulga) p
+    (= 1 (ldb (byte 1 15) gloubiboulga))))
+
+(defmethod (setf edge-of-flight-line-p) (value (p new-point-data))
+  (with-slots (gloubiboulga) p
+    (setf (ldb (byte 1 15) gloubiboulga) (if value 1 0))))
+
+(defparameter *new-asprs-classification*
+  '(created unclassified ground
+    low-vegetation medium-vegetation high-vegetation
+    building low-point reserved water rail road-surface
+    reserved wire-guard wire-conductor transmission-tower
+    wire-structure-connector bridge-deck high-noise))
+
+(defmethod classification ((p new-point-data))
+  (with-slots (classification) p
+    (cond ((< classification (length *new-asprs-classification*))
+	   (nth classification *new-asprs-classification*))
+	  ((< classification 64) 'reserved)
+	  (t 'user-definable))))
+
+(defmethod (setf classification) (value (p new-point-data))
+  (with-slots (classification) p
+    (let ((pos (position value *new-asprs-classification*)))
+      (when pos
+        (setf classification pos)))))
+
 (define-binary-class gps-mixin ()
   ((gps-time float8)))
 
@@ -178,6 +271,9 @@
   ((red u2)
    (green u2)
    (blue u2)))
+
+(define-binary-class nir-mixin ()
+  ((nir u2)))
 
 (define-binary-class waveform-mixin ()
   ((wave-packet-descriptor-index u1)
@@ -194,7 +290,17 @@
 (define-binary-class point-data-gps-waveform (waveform-mixin gps-mixin point-data) ())
 (define-binary-class point-data-color-gps-waveform (waveform-mixin gps-mixin color-mixin point-data) ())
 
+(define-binary-class new-point-data-color (color-mixin new-point-data) ())
+(define-binary-class new-point-data-color-nir (nir-mixin color-mixin new-point-data) ())
+(define-binary-class new-point-data-waveform (waveform-mixin new-point-data) ())
+(define-binary-class new-point-data-color-nir-waveform (waveform-mixin new-point-data-color-nir) ())
+
 (defmethod print-object ((p point-data) stream)
+  (with-accessors ((x x) (y y) (z z)) p
+    (print-unreadable-object (p stream)
+      (format stream "~d ~d ~d" x y z))))
+
+(defmethod print-object ((p new-point-data) stream)
   (with-accessors ((x x) (y y) (z z)) p
     (print-unreadable-object (p stream)
       (format stream "~d ~d ~d" x y z))))
@@ -205,7 +311,12 @@
     point-data-color
     point-data-color-gps
     point-data-gps-waveform
-    point-data-color-gps-waveform))
+    point-data-color-gps-waveform
+    new-point-data
+    new-point-data-color
+    new-point-data-color-nir
+    new-point-data-waveform
+    new-point-data-color-nir-waveform))
 
 (defclass las ()
   ((%stream :initarg :stream :reader las-stream)
@@ -228,7 +339,7 @@
           ;; fill missing slots
           (setf public-header pheader
                 vlrecords vlrs
-                point-class (elt *point-data-classes* (point-data-format-id pheader))))))))
+                point-class (nth (point-data-format-id pheader) *point-data-classes*)))))))
 
 (defun read-point (las &key scale)
   (let ((p (read-value (las-point-class las) (las-stream las))))
