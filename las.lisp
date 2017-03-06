@@ -4,7 +4,8 @@
   ((gps-time 0)
    (internal-wave-data 1)
    (external-wave-data 2)
-   (synthetic-return-point 3)))
+   (synthetic-return-point 3)
+   (wkt 4)))
 
 (define-binary-type 32char-string () (8bit-string :length 32 :terminator #\Nul))
 
