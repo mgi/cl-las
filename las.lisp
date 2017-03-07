@@ -396,7 +396,7 @@
    (%header :accessor las-public-header)
    (%vlrecords :accessor las-variable-length-records)
    (%point-class :accessor las-point-class)
-   (%evlrecords :accessor las-extented-variable-length-records)))
+   (%evlrecords :accessor las-extended-variable-length-records)))
 
 (defun make-las (stream)
   (make-instance 'las :stream stream))
@@ -407,7 +407,7 @@
       (with-accessors ((public-header las-public-header)
                        (vlrecords las-variable-length-records)
                        (point-class las-point-class)
-		       (evlrecords las-extented-variable-length-records)) object
+		       (evlrecords las-extended-variable-length-records)) object
         (multiple-value-bind (pheader vlrs evlrs) (read-headers stream)
           ;; go to data point in stream
           (file-position stream (offset-to-point-data pheader))
