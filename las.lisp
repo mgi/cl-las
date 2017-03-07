@@ -72,11 +72,40 @@
 (defmethod number-of-points-by-return ((header public-header))
   (%number-of-points-by-return header))
 
+(defgeneric start-of-evlrs (header)
+  (:documentation "Unified start of EVLRs between new and before
+  1.4."))
+
+(defmethod start-of-evlrs ((header public-header-1.3))
+  (start-of-waveform-data-packet header))
+
+(defmethod start-of-evlrs ((header public-header))
+  (start-of-first-extended-vlr header))
+
+(defgeneric number-of-evlrs (header)
+  (:documentation "Unified number of EVLRs between new and before
+  1.4."))
+
+(defmethod number-of-evlrs ((header public-header-1.3))
+  "According to the specs, there is only one extended variable length
+  record in LAS 1.3 and it is a waveform data packet."
+  1)
+
+(defmethod number-of-evlrs ((header public-header))
+  (number-of-extended-vlr header))
+
 (define-binary-class variable-length-record ()
   ((reserved u2)
    (user-id (8bit-string :length 16 :terminator #\Nul))
    (record-id u2)
    (record-length-after-header u2)
+   (description 32char-string)))
+
+(define-binary-class extended-variable-length-record ()
+  ((reserved u2)
+   (user-id (8bit-string :length 16 :terminator #\Nul))
+   (record-id u2)
+   (record-length-after-header u8)
    (description 32char-string)))
 
 (defun read-public-header (fd)
@@ -92,18 +121,33 @@
 	   (read-value 'public-header-legacy fd))
 	  (t h))))
 
+;; XXX to be called right after a read-public-header
+(defun read-vlrs (header fd)
+  (do ((vlr (read-value 'variable-length-record fd)
+	    (read-value 'variable-length-record fd))
+       (i 0 (1+ i))
+       res)
+      ((= i (number-of-variable-length-records header)) (nreverse res))
+    (push vlr res)
+    (let ((pos (+ (file-position fd) (record-length-after-header vlr))))
+      (file-position fd pos))))
+
+(defun read-evlrs (header fd)
+  (file-position fd (start-of-evlrs header))
+  (do ((evlr (read-value 'extended-variable-length-record fd)
+	     (read-value 'extended-variable-length-record fd))
+       (i 0 (1+ i))
+       res)
+      ((= i (number-of-evlrs header)) (nreverse res))
+    (push evlr res)
+    (let ((pos (+ (file-position fd) (record-length-after-header evlr))))
+      (file-position fd pos))))
+
 (defun read-headers (fd)
   (let* ((header (read-public-header fd))
-         (vlrecords
-           (do ((vlr (read-value 'variable-length-record fd)
-                     (read-value 'variable-length-record fd))
-                (i 0 (1+ i))
-                res)
-               ((= i (number-of-variable-length-records header)) (nreverse res))
-             (push vlr res)
-	     (let ((pos (+ (file-position fd) (record-length-after-header vlr))))
-	       (file-position fd pos)))))
-    (values header vlrecords)))
+         (vlrecords (read-vlrs header fd))
+	 (evlrecords (read-evlrs header fd)))
+    (values header vlrecords evlrecords)))
 
 (define-binary-class point-data ()
   ((x s4)
@@ -322,7 +366,8 @@
   ((%stream :initarg :stream :reader las-stream)
    (%header :accessor las-public-header)
    (%vlrecords :accessor las-variable-length-records)
-   (%point-class :accessor las-point-class)))
+   (%point-class :accessor las-point-class)
+   (%evlrecords :accessor las-extented-variable-length-records)))
 
 (defun make-las (stream)
   (make-instance 'las :stream stream))
@@ -332,14 +377,16 @@
     (when (streamp stream)
       (with-accessors ((public-header las-public-header)
                        (vlrecords las-variable-length-records)
-                       (point-class las-point-class)) object
-        (multiple-value-bind (pheader vlrs) (read-headers stream)
+                       (point-class las-point-class)
+		       (evlrecords las-extented-variable-length-records)) object
+        (multiple-value-bind (pheader vlrs evlrs) (read-headers stream)
           ;; go to data point in stream
           (file-position stream (offset-to-point-data pheader))
           ;; fill missing slots
           (setf public-header pheader
                 vlrecords vlrs
-                point-class (nth (point-data-format-id pheader) *point-data-classes*)))))))
+                point-class (nth (point-data-format-id pheader) *point-data-classes*)
+		evlrecords evlrs))))))
 
 (defun read-point (las &key scale)
   (let ((p (read-value (las-point-class las) (las-stream las))))
