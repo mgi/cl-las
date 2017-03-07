@@ -101,6 +101,24 @@
    (record-length-after-header u2)
    (description 32char-string)))
 
+(define-binary-class waveform-packet-descriptor ()
+  ((bits-per-sample u1)
+   (waveform-compression-type u1)
+   (number-of-samples u4)
+   (temporal-sample-spacing u4)
+   (digitizer-gain float8)
+   (digitizer-offset float8)))
+
+(define-binary-class geokey-directory-tag ()
+  ((key-directory-version u2)
+   (key-revision u2)
+   (minor-revision u2)
+   (number-of-keys u2)
+   (key-id u2)
+   (tiff-tag-location u2)
+   (char-count u2)
+   (value-offset u2)))
+
 (define-binary-class extended-variable-length-record ()
   ((reserved u2)
    (user-id (8bit-string :length 16 :terminator #\Nul))
@@ -121,6 +139,16 @@
 	   (read-value 'public-header-legacy fd))
 	  (t h))))
 
+(defun read-vlr-content (fd user-id record-id)
+  (cond ((string= user-id "LASF_Projection")
+	 (case record-id
+	   (2111 :not-yet-ogc-math-transform-wkt)
+	   (2112 :not-yet-ogc-coord-system-wkt)
+	   (34735 (read-value 'geokey-directory-tag fd))))
+	((string= user-id "LASF_Spec")
+	 (cond ((and (> record-id 99)
+		     (< record-id 355)) (read-value 'waveform-packet-descriptor fd))))))
+
 ;; XXX to be called right after a read-public-header
 (defun read-vlrs (header fd)
   (do ((vlr (read-value 'variable-length-record fd)
@@ -128,9 +156,10 @@
        (i 0 (1+ i))
        res)
       ((= i (number-of-variable-length-records header)) (nreverse res))
-    (push vlr res)
-    (let ((pos (+ (file-position fd) (record-length-after-header vlr))))
-      (file-position fd pos))))
+    (let ((next-pos (+ (file-position fd) (record-length-after-header vlr)))
+	  (content (read-vlr-content fd (user-id vlr) (record-id vlr))))
+      (push (cons vlr content) res)
+      (file-position fd next-pos))))
 
 (defun read-evlrs (header fd)
   (file-position fd (start-of-evlrs header))
