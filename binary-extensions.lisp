@@ -17,7 +17,8 @@
                                            value
                                            (- (ash 1 (* bits-per-byte bytes)) value))
                  for low-bit from 0 to (* bits-per-byte (1- bytes)) by bits-per-byte
-                 do (write-byte (ldb (byte bits-per-byte low-bit) unsigned-value) out))))
+                 do (write-byte (ldb (byte bits-per-byte low-bit) unsigned-value) out)))
+  (:size () bytes))
 
 (define-binary-type u1 () (integer :bytes 1))
 (define-binary-type u2 () (integer :bytes 2))
@@ -46,7 +47,8 @@
                                         (4 (ieee-floats:encode-float32 value))
                                         (8 (ieee-floats:encode-float64 value)))
                  for low-bit from 0 to (* bits-per-byte (1- bytes)) by bits-per-byte
-                 do (write-byte (ldb (byte bits-per-byte low-bit) encoded-value) out))))
+                 do (write-byte (ldb (byte bits-per-byte low-bit) encoded-value) out)))
+  (:size () bytes))
 
 (define-binary-type float4 () (float :bytes 4))
 (define-binary-type float8 () (float :bytes 8))
@@ -60,7 +62,8 @@
                  finally (return arr)))
   (:writer (out value)
            (loop for e across value
-                 do (write-value type out e))))
+                 do (write-value type out e)))
+  (:size () (* size (type-size type))))
 
 ;; Bitfields:
 ;;
@@ -82,7 +85,8 @@
                                    for (,symbol ,bit) in ',@mapping
                                    do (when (member ,symbol ,value)
                                         (setf (ldb (byte 1 ,bit) ,encval) 1))
-                                   finally (return ,encval)))))))
+                                   finally (return ,encval))))
+       (:size () (type-size ',type)))))
 
 ;; Fix length null terminated ASCII strings. This codes should work
 ;; for 8bit character be it ASCII, ISO 8859 or UTF-8 sans extensions.
@@ -98,4 +102,5 @@
                    for i from 0
                    do (setf (char outstring i) (char string i)))
              (loop for char across outstring
-                   do (write-byte (char-code char) out)))))
+                   do (write-byte (char-code char) out))))
+  (:size () length))

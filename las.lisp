@@ -417,9 +417,11 @@
                 point-class (nth (point-data-format-id pheader) *point-data-classes*)
 		evlrecords evlrs))))))
 
-(defun read-point (las &key scale)
+(defun read-point (las &key scale-p)
+  "Read a point in the given LAS. XXX position into the LAS stream
+should be correct."
   (let ((p (read-value (las-point-class las) (las-stream las))))
-    (when scale
+    (when scale-p
       (with-accessors ((x x) (y y) (z z)) p
         (with-accessors ((x-scale x-scale) (x-offset x-offset)
                          (y-scale y-scale) (y-offset y-offset)
@@ -428,6 +430,12 @@
                 y (+ y-offset (* y y-scale))
                 z (+ z-offset (* z z-scale))))))
     p))
+
+(defun read-point-at (index las &key scale-p)
+  "Read a point at a given index."
+  (file-position (las-stream las) (+ (offset-to-point-data (las-public-header las))
+				     (* index (object-size (las-point-class las)))))
+  (read-point las :scale-p scale-p))
 
 (defmacro with-las ((las filename) &body body)
   (alexandria:with-gensyms (stream abort)
