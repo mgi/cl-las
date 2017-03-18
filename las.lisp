@@ -420,6 +420,8 @@
 (defun read-point (las &key scale-p)
   "Read a point in the given LAS. XXX position into the LAS stream
 should be correct."
+  (assert (=  (point-data-record-length (las-public-header las)) (object-size (las-point-class las)))
+	  () "Point data contains user-specific extra bytes.")
   (let ((p (read-value (las-point-class las) (las-stream las))))
     (when scale-p
       (with-accessors ((x x) (y y) (z z)) p
