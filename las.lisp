@@ -439,6 +439,53 @@ should be correct."
 				     (* index (object-size (las-point-class las)))))
   (read-point las :scale-p scale-p))
 
+
+(defclass waveform-point ()
+  ((x :initarg :x :accessor waveform-point-x)
+   (y :initarg :y :accessor waveform-point-y)
+   (z :initarg :z :accessor waveform-point-z)
+   (time :initarg :time :accessor waveform-point-time)
+   (intensity :initarg :intensity :accessor waveform-point-intensity))
+  (:documentation "Positioned point from a waveform."))
+
+(defmethod print-object ((p waveform-point) stream)
+  (with-accessors ((x waveform-point-x)
+		   (y waveform-point-y)
+		   (z waveform-point-z)
+		   (i waveform-point-intensity)) p
+    (print-unreadable-object (p stream)
+      (format stream "~d ~d ~d ~d" x y z i))))
+
+(defun type-from-bits (bits)
+  (ecase bits
+    (8 'u1)
+    (16 'u2)
+    (32 'u4)))
+
+(defgeneric waveform-of-point (point las))
+
+(defmethod waveform-of-point ((point point-data-gps-waveform) las)
+  (let* ((record-id (+ 99 (wave-packet-descriptor-index point)))
+	 (vlrs (las-variable-length-records las))
+	 (header (las-public-header las))
+	 (evlr-pos (start-of-evlrs header)))
+    (labels ((wpd-key (elt)
+	       (and (typep (cdr elt) 'waveform-packet-descriptor)
+		    (record-id (car elt)))))
+      (let ((wpd (unless (= record-id 99)
+		   (cdr (find record-id vlrs :key #'wpd-key)))))
+	(assert (= (* (number-of-samples wpd) (truncate (bits-per-sample wpd) 8))
+		   (waveform-packet-size point)))
+	(file-position (las-stream las) (+ evlr-pos (byte-offset-to-waveform point)))
+	(loop for i below (number-of-samples wpd)
+	      collect (let ((time (- (* i (temporal-sample-spacing wpd)) (return-point-waveform-location point))))
+			(make-instance 'waveform-point
+				       :intensity (read-value (type-from-bits (bits-per-sample wpd)) (las-stream las))
+				       :time time
+				       :x (+ (x point) (* (x-t point) time))
+				       :y (+ (y point) (* (y-t point) time))
+				       :z (+ (z point) (* (z-t point) time)))))))))
+
 (defmacro with-las ((las filename) &body body)
   (alexandria:with-gensyms (stream abort)
     `(let ((,stream (open ,filename :element-type '(unsigned-byte 8)))
@@ -465,6 +512,38 @@ should be correct."
                          (z z)
                          (intensity intensity)
                          (gps-time gps-time)
-                         (return-number return-number)) (read-point in :scale t)
+                         (return-number return-number)) (read-point in :scale-p t)
           (format out "~&~f ~f ~f ~d ~f ~d~%" x y z
                   intensity gps-time return-number))))))
+
+(defun wave-to-txt (lasfile outfile &optional (index 0) n)
+  (with-open-file (out outfile :direction :output
+			       :if-exists :supersede
+			       :if-does-not-exist :create)
+    (with-las (in lasfile)
+      (dotimes (i (or n (las-number-of-points in)))
+	(let* ((point (read-point-at (+ index i) in))
+	       (wave (waveform-of-point point in)))
+	  (dolist (p wave)
+	    (with-accessors ((x waveform-point-x)
+			     (y waveform-point-y)
+			     (z waveform-point-z)
+			     (intensity waveform-point-intensity)) p
+	      (format out "~&~f ~f ~f ~d~%" x y z intensity)))
+	  (terpri out))))))
+
+(defun wave-and-point (lasfile out-point out-wave &optional (index 0))
+  (with-open-file (op out-point :direction :output
+				:if-exists :supersede
+				:if-does-not-exist :create)
+    (with-open-file (ow out-wave :direction :output
+				 :if-exists :supersede
+				 :if-does-not-exist :create)
+      (with-las (las lasfile)
+	(let* ((point (read-point-at index las :scale-p t))
+	       (wave (waveform-of-point point las)))
+	  (dolist (p wave)
+	    (with-accessors ((time waveform-point-time)
+			     (intensity waveform-point-intensity)) p
+	      (format ow "~&~d ~d~%" time intensity)))
+	  (format op "~&0 ~d~%" (* (/ 65536 65536) (intensity point))))))))
