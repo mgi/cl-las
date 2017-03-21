@@ -478,7 +478,7 @@ should be correct."
 		   (waveform-packet-size point)))
 	(file-position (las-stream las) (+ evlr-pos (byte-offset-to-waveform point)))
 	(loop for i below (number-of-samples wpd)
-	      collect (let ((time (- (* i (temporal-sample-spacing wpd)) (return-point-waveform-location point))))
+	      collect (let ((time (float (- (* i (temporal-sample-spacing wpd)) (return-point-waveform-location point)) 1.d0)))
 			(make-instance 'waveform-point
 				       :intensity (read-value (type-from-bits (bits-per-sample wpd)) (las-stream las))
 				       :time time
@@ -500,6 +500,8 @@ should be correct."
 (defmethod las-number-of-points ((object las))
   (number-of-points (las-public-header object)))
 
+
+;;; Examples
 (defun las-to-txt (lasfile outfile &optional n)
   "Example of text convertion."
   (with-open-file (out outfile :direction :output
@@ -540,10 +542,10 @@ should be correct."
 				 :if-exists :supersede
 				 :if-does-not-exist :create)
       (with-las (las lasfile)
-	(let* ((point (read-point-at index las :scale-p t))
+	(let* ((point (read-point-at index las))
 	       (wave (waveform-of-point point las)))
 	  (dolist (p wave)
 	    (with-accessors ((time waveform-point-time)
 			     (intensity waveform-point-intensity)) p
 	      (format ow "~&~d ~d~%" time intensity)))
-	  (format op "~&0 ~d~%" (* (/ 65536 65536) (intensity point))))))))
+	  (format op "~&0 ~d~%" (intensity point)))))))
