@@ -6,7 +6,6 @@
   :author "Manuel Giraud <manuel@ledu-giraud.fr>"
   :description "Library to manipulate LAS files"
   :serial t
-  :depends-on (:alexandria :com.gigamonkeys.binary-data :ieee-floats)
+  :depends-on (:alexandria :com.gigamonkeys.binary-data)
   :components ((:file "package")
-               (:file "binary-extensions")
-               (:file "las" :depends-on ("binary-extensions"))))
+               (:file "las")))
