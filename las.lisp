@@ -440,9 +440,8 @@ should be correct."
   (read-point las :scale-p scale-p))
 
 (defmacro make-getter (fun-name low-level-name)
-  (alexandria:with-gensyms (las)
-    `(defun ,fun-name (,las)
-       (,low-level-name (las-public-header ,las)))))
+  `(defun ,fun-name (las)
+     (,low-level-name (las-public-header las))))
 
 (make-getter max-x %max-x)
 (make-getter min-x %min-x)
