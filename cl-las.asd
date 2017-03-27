@@ -8,4 +8,5 @@
   :serial t
   :depends-on (:alexandria :com.gigamonkeys.binary-data)
   :components ((:file "package")
+	       (:file "geotiff")
                (:file "las")))
