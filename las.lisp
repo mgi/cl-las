@@ -109,12 +109,14 @@
    (digitizer-gain float8)
    (digitizer-offset float8)))
 
-(define-binary-class geokey-directory-tag ()
+(define-binary-class geokey-directory ()
   ((key-directory-version u2)
    (key-revision u2)
    (minor-revision u2)
-   (number-of-keys u2)
-   (key-id u2)
+   (number-of-keys u2)))
+
+(define-binary-class geokey-key ()
+  ((key-id u2)
    (tiff-tag-location u2)
    (char-count u2)
    (value-offset u2)))
@@ -144,7 +146,10 @@
 	 (case record-id
 	   (2111 :not-yet-ogc-math-transform-wkt)
 	   (2112 :not-yet-ogc-coord-system-wkt)
-	   (34735 (read-value 'geokey-directory-tag fd))))
+	   (34735 (let ((directory (read-value 'geokey-directory fd)))
+		    (cons directory (loop for i below (number-of-keys directory)
+					  collect (read-value 'geokey-key fd)))))
+	   (34736 (read-value 'geo-double-params-tag fd))))
 	((string= user-id "LASF_Spec")
 	 (cond ((and (> record-id 99)
 		     (< record-id 355)) (read-value 'waveform-packet-descriptor fd))))))
@@ -495,6 +500,11 @@ should be correct."
 				       :x (+ (x point) (* (x-t point) time))
 				       :y (+ (y point) (* (y-t point) time))
 				       :z (+ (z point) (* (z-t point) time)))))))))
+
+(defmethod las-projection ((las las))
+  (labels ((mykey (elt)
+	     (user-id (car elt))))
+    (find "LASF_Projection" (las-variable-length-records las) :key #'mykey :test #'string=)))
 
 (defmacro with-las ((las filename) &body body)
   (alexandria:with-gensyms (stream abort)
