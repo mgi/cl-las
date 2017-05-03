@@ -5,6 +5,13 @@
    #:with-las
    #:read-point
    #:read-point-at
+   #:waveform-of-point
+   #:waveform-length-of-point
+   #:waveform-temporal-spacing-of-point
+   #:waveform-point-intensity
+   #:waveform-point-x
+   #:waveform-point-y
+   #:waveform-point-z
    #:max-x
    #:min-x
    #:max-y

@@ -121,6 +121,13 @@
    (char-count u2)
    (value-offset u2)))
 
+(defmethod print-object ((key geokey-key) stream)
+  (with-accessors ((id key-id)
+		   (tag tiff-tag-location)
+		   (val value-offset)) key
+    (print-unreadable-object (key stream :type t)
+      (format stream "~d ~d ~d" id tag val))))
+
 (define-binary-class extended-variable-length-record ()
   ((reserved u2)
    (user-id (8bit-string :length 16 :terminator #\Nul))
@@ -460,7 +467,6 @@ should be correct."
   ((x :initarg :x :accessor waveform-point-x)
    (y :initarg :y :accessor waveform-point-y)
    (z :initarg :z :accessor waveform-point-z)
-   (time :initarg :time :accessor waveform-point-time)
    (intensity :initarg :intensity :accessor waveform-point-intensity))
   (:documentation "Positioned point from a waveform."))
 
@@ -478,29 +484,51 @@ should be correct."
     (16 'u2)
     (32 'u4)))
 
-(defgeneric waveform-of-point (point las))
+(defgeneric waveform-length-of-point (point las))
 
-(defmethod waveform-of-point ((point point-data-gps-waveform) las)
+(defmethod waveform-length-of-point ((point point-data-gps-waveform) las)
   (let* ((record-id (+ 99 (wave-packet-descriptor-index point)))
 	 (vlrs (las-variable-length-records las))
-	 (header (las-public-header las))
-	 (evlr-pos (start-of-evlrs header)))
+	 (header (las-public-header las)))
+    (unless (= record-id 99)
+      (labels ((wpd-key (elt)
+		 (and (typep (cdr elt) 'waveform-packet-descriptor)
+		      (record-id (car elt)))))
+	(let ((wpd (cdr (find record-id vlrs :key #'wpd-key))))
+	  (number-of-samples wpd))))))
+
+(defun %get-wave-packet-descriptor-of-point (point las)
+  (let* ((record-id (+ 99 (wave-packet-descriptor-index point)))
+	 (vlrs (las-variable-length-records las)))
     (labels ((wpd-key (elt)
 	       (and (typep (cdr elt) 'waveform-packet-descriptor)
 		    (record-id (car elt)))))
-      (let ((wpd (unless (= record-id 99)
-		   (cdr (find record-id vlrs :key #'wpd-key)))))
-	(assert (= (* (number-of-samples wpd) (truncate (bits-per-sample wpd) 8))
-		   (waveform-packet-size point)))
-	(file-position (las-stream las) (+ evlr-pos (byte-offset-to-waveform point)))
-	(loop for i below (number-of-samples wpd)
-	      collect (let ((time (float (- (* i (temporal-sample-spacing wpd)) (return-point-waveform-location point)) 1.d0)))
-			(make-instance 'waveform-point
-				       :intensity (read-value (type-from-bits (bits-per-sample wpd)) (las-stream las))
-				       :time time
-				       :x (+ (x point) (* (x-t point) time))
-				       :y (+ (y point) (* (y-t point) time))
-				       :z (+ (z point) (* (z-t point) time)))))))))
+      (unless (= record-id 99)
+	(cdr (find record-id vlrs :key #'wpd-key))))))
+
+(defgeneric waveform-temporal-spacing-of-point (point las)
+  (:documentation "Waveform temporal spacing in picoseconds (ps)."))
+
+(defmethod waveform-temporal-spacing-of-point ((point point-data-gps-waveform) las)
+  (let ((wpd (%get-wave-packet-descriptor-of-point point las)))
+    (temporal-sample-spacing wpd)))
+
+(defgeneric waveform-of-point (point las))
+
+(defmethod waveform-of-point ((point point-data-gps-waveform) las)
+  (let* ((wpd (%get-wave-packet-descriptor-of-point point las))
+	 (header (las-public-header las))
+	 (evlr-pos (start-of-evlrs header)))
+    (assert (= (* (number-of-samples wpd) (truncate (bits-per-sample wpd) 8))
+	       (waveform-packet-size point)))
+    (file-position (las-stream las) (+ evlr-pos (byte-offset-to-waveform point)))
+    (loop for i below (number-of-samples wpd)
+	  collect (let ((time (float (- (* i (temporal-sample-spacing wpd)) (return-point-waveform-location point)) 1.d0)))
+		    (make-instance 'waveform-point
+				   :intensity (read-value (type-from-bits (bits-per-sample wpd)) (las-stream las))
+				   :x (+ (x point) (* (x-t point) time))
+				   :y (+ (y point) (* (y-t point) time))
+				   :z (+ (z point) (* (z-t point) time)))))))
 
 (defmethod las-projection ((las las))
   (labels ((mykey (elt)
