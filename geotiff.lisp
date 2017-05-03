@@ -166,3 +166,8 @@
   CS's need to reference the vertical coordinate. This, together with
   the Citation key, comprise the only fully implemented keys in this
   section, at present.")
+
+;; map info = {UTM, 1.000, 1.000, 599689.623, 5335391.166, 5.0000000000e-01, 5.0000000000e-01, 30, North, WGS-84, units=Meters}
+;; coordinate system string = {PROJCS["UTM_Zone_30N",GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]],PROJECTION["Tran
+;; sverse_Mercator"],PARAMETER["False_Easting",500000.0],PARAMETER["False_Northing",0.0],PARAMETER["Central_M
+;; eridian",-3.0],PARAMETER["Scale_Factor",0.9996],PARAMETER["Latitude_Of_Origin",0.0],UNIT["Meter",1.0]]}
