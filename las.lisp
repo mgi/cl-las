@@ -464,9 +464,7 @@ should be correct."
 (make-getter min-z %min-z)
 
 (defclass waveform ()
-  ((id :initarg :id :accessor waveform-id)
-   (size :initarg :size :accessor waveform-size)
-   (xs :initarg :xs :accessor waveform-xs)
+  ((xs :initarg :xs :accessor waveform-xs)
    (ys :initarg :ys :accessor waveform-ys)
    (zs :initarg :zs :accessor waveform-zs)
    (intensities :initarg :intensities :accessor waveform-intensities))
@@ -492,14 +490,13 @@ should be correct."
 	  (number-of-samples wpd))))))
 
 (defun %get-wave-packet-descriptor-of-point (point las)
-  "Returns (values wave-packet-descriptor id)"
-  (let* ((record-id (+ 99 (wave-packet-descriptor-index point)))
-	 (vlrs (las-variable-length-records las)))
+  (let ((record-id (+ 99 (wave-packet-descriptor-index point)))
+	(vlrs (las-variable-length-records las)))
     (labels ((wpd-key (elt)
 	       (and (typep (cdr elt) 'waveform-packet-descriptor)
 		    (record-id (car elt)))))
       (unless (= record-id 99)
-	(values (cdr (find record-id vlrs :key #'wpd-key)) record-id)))))
+	(cdr (find record-id vlrs :key #'wpd-key))))))
 
 (defgeneric waveform-temporal-spacing-of-point (point las)
   (:documentation "Waveform temporal spacing in picoseconds (ps)."))
@@ -512,25 +509,25 @@ should be correct."
 
 (defmethod waveform-of-point ((point point-data-gps-waveform) las)
   (let* ((header (las-public-header las))
-	 (evlr-pos (start-of-evlrs header)))
-    (multiple-value-bind (wpd id) (%get-wave-packet-descriptor-of-point point las)
-      (assert (= (* (number-of-samples wpd) (truncate (bits-per-sample wpd) 8))
-		 (waveform-packet-size point)))
-      (file-position (las-stream las) (+ evlr-pos (byte-offset-to-waveform point)))
-      (loop with n = (number-of-samples wpd)
-	    with dt = (temporal-sample-spacing wpd)
-	    with bps = (bits-per-sample wpd)
-	    with xs = (make-array n :element-type 'double-float)
-	    with ys = (make-array n :element-type 'double-float)
-	    with zs = (make-array n :element-type 'double-float)
-	    with intensities = (make-array n :element-type `(unsigned-byte ,bps))
-	    for i below n
-	    do (let ((time (float (- (* i dt) (return-point-waveform-location point)) 1.d0)))
-		 (setf (aref xs i) (+ (x point) (* (x-t point) time))
-		       (aref ys i) (+ (y point) (* (y-t point) time))
-		       (aref zs i) (+ (z point) (* (z-t point) time))
-		       (aref intensities i) (read-value (type-from-bits bps) (las-stream las))))
-	    finally (return (make-instance 'waveform :xs xs :ys ys :zs zs :intensities intensities :id id :size n))))))
+	 (evlr-pos (start-of-evlrs header))
+	 (wpd (%get-wave-packet-descriptor-of-point point las)))
+    (assert (= (* (number-of-samples wpd) (truncate (bits-per-sample wpd) 8))
+	       (waveform-packet-size point)))
+    (file-position (las-stream las) (+ evlr-pos (byte-offset-to-waveform point)))
+    (loop with n = (number-of-samples wpd)
+	  with dt = (temporal-sample-spacing wpd)
+	  with bps = (bits-per-sample wpd)
+	  with xs = (make-array n :element-type 'double-float)
+	  with ys = (make-array n :element-type 'double-float)
+	  with zs = (make-array n :element-type 'double-float)
+	  with intensities = (make-array n :element-type `(unsigned-byte ,bps))
+	  for i below n
+	  do (let ((time (float (- (* i dt) (return-point-waveform-location point)) 1.d0)))
+	       (setf (aref xs i) (+ (x point) (* (x-t point) time))
+		     (aref ys i) (+ (y point) (* (y-t point) time))
+		     (aref zs i) (+ (z point) (* (z-t point) time))
+		     (aref intensities i) (read-value (type-from-bits bps) (las-stream las))))
+	  finally (return (make-instance 'waveform :xs xs :ys ys :zs zs :intensities intensities)))))
 
 (defmethod las-projection ((las las))
   (labels ((mykey (elt)
@@ -550,7 +547,6 @@ should be correct."
 
 (defmethod las-number-of-points ((object las))
   (number-of-points (las-public-header object)))
-
 
 ;;; Examples
 (defun las-to-txt (lasfile outfile &optional n)

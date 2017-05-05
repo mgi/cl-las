@@ -8,7 +8,6 @@
    #:waveform-of-point
    #:waveform-length-of-point
    #:waveform-temporal-spacing-of-point
-   #:waveform-id
    #:waveform-xs
    #:waveform-ys
    #:waveform-zs
