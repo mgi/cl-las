@@ -8,10 +8,11 @@
    #:waveform-of-point
    #:waveform-length-of-point
    #:waveform-temporal-spacing-of-point
-   #:waveform-point-intensity
-   #:waveform-point-x
-   #:waveform-point-y
-   #:waveform-point-z
+   #:waveform-id
+   #:waveform-xs
+   #:waveform-ys
+   #:waveform-zs
+   #:waveform-intensities
    #:max-x
    #:min-x
    #:max-y
