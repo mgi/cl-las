@@ -503,7 +503,8 @@ should be correct."
 
 (defmethod waveform-temporal-spacing-of-point ((point point-data-gps-waveform) las)
   (let ((wpd (%get-wave-packet-descriptor-of-point point las)))
-    (temporal-sample-spacing wpd)))
+    (when wpd
+      (temporal-sample-spacing wpd))))
 
 (defgeneric waveform-of-point (point las))
 
@@ -511,23 +512,24 @@ should be correct."
   (let* ((header (las-public-header las))
 	 (evlr-pos (start-of-evlrs header))
 	 (wpd (%get-wave-packet-descriptor-of-point point las)))
-    (assert (= (* (number-of-samples wpd) (truncate (bits-per-sample wpd) 8))
-	       (waveform-packet-size point)))
-    (file-position (las-stream las) (+ evlr-pos (byte-offset-to-waveform point)))
-    (loop with n = (number-of-samples wpd)
-	  with dt = (temporal-sample-spacing wpd)
-	  with bps = (bits-per-sample wpd)
-	  with xs = (make-array n :element-type 'double-float)
-	  with ys = (make-array n :element-type 'double-float)
-	  with zs = (make-array n :element-type 'double-float)
-	  with intensities = (make-array n :element-type `(unsigned-byte ,bps))
-	  for i below n
-	  do (let ((time (float (- (* i dt) (return-point-waveform-location point)) 1.d0)))
-	       (setf (aref xs i) (+ (x point) (* (x-t point) time))
-		     (aref ys i) (+ (y point) (* (y-t point) time))
-		     (aref zs i) (+ (z point) (* (z-t point) time))
-		     (aref intensities i) (read-value (type-from-bits bps) (las-stream las))))
-	  finally (return (make-instance 'waveform :xs xs :ys ys :zs zs :intensities intensities)))))
+    (when wpd
+      (assert (= (* (number-of-samples wpd) (truncate (bits-per-sample wpd) 8))
+		 (waveform-packet-size point)))
+      (file-position (las-stream las) (+ evlr-pos (byte-offset-to-waveform point)))
+      (loop with n = (number-of-samples wpd)
+	    with dt = (temporal-sample-spacing wpd)
+	    with bps = (bits-per-sample wpd)
+	    with xs = (make-array n :element-type 'double-float)
+	    with ys = (make-array n :element-type 'double-float)
+	    with zs = (make-array n :element-type 'double-float)
+	    with intensities = (make-array n :element-type `(unsigned-byte ,bps))
+	    for i below n
+	    do (let ((time (float (- (* i dt) (return-point-waveform-location point)) 1.d0)))
+		 (setf (aref xs i) (+ (x point) (* (x-t point) time))
+		       (aref ys i) (+ (y point) (* (y-t point) time))
+		       (aref zs i) (+ (z point) (* (z-t point) time))
+		       (aref intensities i) (read-value (type-from-bits bps) (las-stream las))))
+	    finally (return (make-instance 'waveform :xs xs :ys ys :zs zs :intensities intensities))))))
 
 (defmethod las-projection ((las las))
   (labels ((mykey (elt)
