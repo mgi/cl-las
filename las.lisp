@@ -525,9 +525,9 @@ should be correct."
 	    with intensities = (make-array n :element-type `(unsigned-byte ,bps))
 	    for i below n
 	    do (let ((time (float (- (* i dt) (return-point-waveform-location point)) 1.d0)))
-		 (setf (aref xs i) (+ (x point) (* (x-t point) time))
-		       (aref ys i) (+ (y point) (* (y-t point) time))
-		       (aref zs i) (+ (z point) (* (z-t point) time))
+		 (setf (aref xs i) (- (x point) (* (x-t point) time))
+		       (aref ys i) (- (y point) (* (y-t point) time))
+		       (aref zs i) (- (z point) (* (z-t point) time))
 		       (aref intensities i) (read-value (type-from-bits bps) (las-stream las))))
 	    finally (return (make-instance 'waveform :xs xs :ys ys :zs zs :intensities intensities))))))
 
