@@ -21,6 +21,7 @@
    #:x
    #:y
    #:z
+   #:intensity
    #:x-t
    #:y-t
    #:z-t
