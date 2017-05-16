@@ -524,11 +524,12 @@ should be correct."
 	    with zs = (make-array n :element-type 'double-float)
 	    with intensities = (make-array n :element-type `(unsigned-byte ,bps))
 	    for i below n
-	    do (let ((time (float (- (* i dt) (return-point-waveform-location point)) 1.d0)))
-		 (setf (aref xs i) (- (x point) (* (x-t point) time))
-		       (aref ys i) (- (y point) (* (y-t point) time))
-		       (aref zs i) (- (z point) (* (z-t point) time))
-		       (aref intensities i) (read-value (type-from-bits bps) (las-stream las))))
+	    for j downfrom (1- n)
+	    do (let ((time (float (- (return-point-waveform-location point) (* i dt)) 1.d0)))
+		 (setf (aref xs j) (+ (x point) (* (x-t point) time))
+		       (aref ys j) (+ (y point) (* (y-t point) time))
+		       (aref zs j) (+ (z point) (* (z-t point) time))
+		       (aref intensities j) (read-value (type-from-bits bps) (las-stream las))))
 	    finally (return (make-instance 'waveform :xs xs :ys ys :zs zs :intensities intensities))))))
 
 (defmethod las-projection ((las las))
