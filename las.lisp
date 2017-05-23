@@ -478,7 +478,7 @@ should be correct."
 
 (defgeneric waveform-length-of-point (point las))
 
-(defmethod waveform-length-of-point ((point point-data-gps-waveform) las)
+(defmethod waveform-length-of-point ((point waveform-mixin) las)
   (let* ((record-id (+ 99 (wave-packet-descriptor-index point)))
 	 (vlrs (las-variable-length-records las))
 	 (header (las-public-header las)))
@@ -501,14 +501,14 @@ should be correct."
 (defgeneric waveform-temporal-spacing-of-point (point las)
   (:documentation "Waveform temporal spacing in picoseconds (ps)."))
 
-(defmethod waveform-temporal-spacing-of-point ((point point-data-gps-waveform) las)
+(defmethod waveform-temporal-spacing-of-point ((point waveform-mixin) las)
   (let ((wpd (%get-wave-packet-descriptor-of-point point las)))
     (when wpd
       (temporal-sample-spacing wpd))))
 
 (defgeneric waveform-of-point (point las))
 
-(defmethod waveform-of-point ((point point-data-gps-waveform) las)
+(defmethod waveform-of-point ((point waveform-mixin) las)
   (let* ((header (las-public-header las))
 	 (evlr-pos (start-of-evlrs header))
 	 (wpd (%get-wave-packet-descriptor-of-point point las)))
