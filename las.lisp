@@ -148,18 +148,38 @@
 	   (read-value 'public-header-legacy fd))
 	  (t h))))
 
+(defclass vlr-mixin ()
+  ((user-id :initarg :user-id :accessor vlr-user-id)
+   (record-id :initarg :record-id :accessor vlr-record-id))
+  (:documentation "More user-friendly class for variable length record
+  then the underlying binary class."))
+
+(defclass wpd-vlr (vlr-mixin)
+  ((content :initarg :content :accessor wpd-vlr-content))
+  (:documentation "Waveform packet descriptor VLR"))
+
+(defclass projection-vlr (vlr-mixin)
+  ((directory :initarg :directory :accessor projection-vlr-directory)
+   (keys :initarg :keys :accessor projection-vlr-keys))
+  (:documentation "Projection VLR"))
+
 (defun read-vlr-content (fd user-id record-id)
   (cond ((string= user-id "LASF_Projection")
 	 (case record-id
 	   (2111 :not-yet-ogc-math-transform-wkt)
 	   (2112 :not-yet-ogc-coord-system-wkt)
 	   (34735 (let ((directory (read-value 'geokey-directory fd)))
-		    (cons directory (loop for i below (number-of-keys directory)
-					  collect (read-value 'geokey-key fd)))))
+		    (make-instance 'projection-vlr
+				   :user-id user-id
+				   :record-id record-id
+				   :directory directory
+				   :keys (loop for i below (number-of-keys directory)
+					       collect (read-value 'geokey-key fd)))))
 	   (34736 (read-value 'geo-double-params-tag fd))))
 	((string= user-id "LASF_Spec")
-	 (cond ((and (> record-id 99)
-		     (< record-id 355)) (read-value 'waveform-packet-descriptor fd))))))
+	 (cond ((and (> record-id 99) (< record-id 355))
+		(make-instance 'wpd-vlr :user-id user-id :record-id record-id
+					:content (read-value 'waveform-packet-descriptor fd)))))))
 
 ;; XXX to be called right after a read-public-header
 (defun read-vlrs (header fd)
@@ -170,7 +190,7 @@
       ((= i (number-of-variable-length-records header)) (nreverse res))
     (let ((next-pos (+ (file-position fd) (record-length-after-header vlr)))
 	  (content (read-vlr-content fd (user-id vlr) (record-id vlr))))
-      (push (cons vlr content) res)
+      (push content res)
       (file-position fd next-pos))))
 
 (defun read-evlrs (header fd)
@@ -476,27 +496,14 @@ should be correct."
     (16 'u2)
     (32 'u4)))
 
-(defgeneric waveform-length-of-point (point las))
-
-(defmethod waveform-length-of-point ((point waveform-mixin) las)
-  (let* ((record-id (+ 99 (wave-packet-descriptor-index point)))
-	 (vlrs (las-variable-length-records las))
-	 (header (las-public-header las)))
-    (unless (= record-id 99)
-      (labels ((wpd-key (elt)
-		 (and (typep (cdr elt) 'waveform-packet-descriptor)
-		      (record-id (car elt)))))
-	(let ((wpd (cdr (find record-id vlrs :key #'wpd-key))))
-	  (number-of-samples wpd))))))
-
 (defun %get-wave-packet-descriptor-of-point (point las)
   (let ((record-id (+ 99 (wave-packet-descriptor-index point)))
 	(vlrs (las-variable-length-records las)))
     (labels ((wpd-key (elt)
-	       (and (typep (cdr elt) 'waveform-packet-descriptor)
-		    (record-id (car elt)))))
+	       (and (typep elt 'wpd-vlr)
+		    (vlr-record-id elt))))
       (unless (= record-id 99)
-	(cdr (find record-id vlrs :key #'wpd-key))))))
+	(wpd-vlr-content (find record-id vlrs :key #'wpd-key))))))
 
 (defgeneric waveform-temporal-spacing-of-point (point las)
   (:documentation "Waveform temporal spacing in picoseconds (ps)."))
@@ -532,10 +539,11 @@ should be correct."
 		       (aref intensities j) (read-value (type-from-bits bps) (las-stream las))))
 	    finally (return (make-instance 'waveform :xs xs :ys ys :zs zs :intensities intensities))))))
 
-(defmethod las-projection ((las las))
+(defmethod projection ((las las))
   (labels ((mykey (elt)
-	     (user-id (car elt))))
-    (find "LASF_Projection" (las-variable-length-records las) :key #'mykey :test #'string=)))
+	     (vlr-user-id elt)))
+    (let ((vlr-projection (find "LASF_Projection" (las-variable-length-records las) :key #'mykey :test #'string=)))
+      vlr-projection)))
 
 (defmacro with-las ((las filename) &body body)
   (alexandria:with-gensyms (stream abort)

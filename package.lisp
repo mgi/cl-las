@@ -6,7 +6,6 @@
    #:read-point
    #:read-point-at
    #:waveform-of-point
-   #:waveform-length-of-point
    #:waveform-temporal-spacing-of-point
    #:waveform-xs
    #:waveform-ys
@@ -18,6 +17,7 @@
    #:min-y
    #:max-z
    #:min-z
+   #:projection
    #:x
    #:y
    #:z
