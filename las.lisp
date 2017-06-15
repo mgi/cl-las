@@ -555,10 +555,10 @@ should be correct."
 	    finally (return (make-instance 'waveform :xs xs :ys ys :zs zs :intensities intensities))))))
 
 (defmethod projection ((las las))
-  (labels ((mykey (elt)
-	     (vlr-user-id elt)))
-    (let ((vlr-projection (find "LASF_Projection" (las-variable-length-records las) :key #'mykey :test #'string=)))
-      vlr-projection)))
+  (let ((vlr-projection (find "LASF_Projection" (las-variable-length-records las)
+			      :key #'vlr-user-id :test #'string=)))
+    (when vlr-projection
+      (get-projection-wkt (projection-vlr-keys vlr-projection)))))
 
 (defmacro with-las ((las filename) &body body)
   (alexandria:with-gensyms (stream abort)

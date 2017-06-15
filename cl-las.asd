@@ -6,7 +6,7 @@
   :author "Manuel Giraud <manuel@ledu-giraud.fr>"
   :description "Library to manipulate LAS files"
   :serial t
-  :depends-on (:alexandria :com.gigamonkeys.binary-data)
+  :depends-on (:alexandria :com.gigamonkeys.binary-data :geowkt)
   :components ((:file "package")
 	       (:file "geotiff")
                (:file "las")))
