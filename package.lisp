@@ -11,6 +11,8 @@
    #:waveform-ys
    #:waveform-zs
    #:waveform-intensities
+   #:classification
+   #:human-readable-classification
    #:max-x
    #:min-x
    #:max-y

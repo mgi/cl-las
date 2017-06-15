@@ -267,23 +267,38 @@
     (setf (ldb (byte 1 7) gloubiboulga) (if value 1 0))))
 
 (defparameter *asprs-classification*
-  '(created unclassified ground
-    low-vegetation medium-vegetation high-vegetation
-    building low-point key-point water
-    reserved reserved overlap-point))
+  '(:created
+    :unclassified
+    :ground
+    :low-vegetation
+    :medium-vegetation
+    :high-vegetation
+    :building
+    :low-point
+    :key-point
+    :water
+    :reserved
+    :reserved
+    :overlap-point))
 
 (defmethod classification ((p point-data))
   (with-slots (classification) p
-    (let ((value (ldb (byte 5 0) classification)))
-      (if (< value (length *asprs-classification*))
-          (nth value *asprs-classification*)
-          'reserved))))
+    (ldb (byte 5 0) classification)))
 
 (defmethod (setf classification) (value (p point-data))
   (with-slots (classification) p
-    (let ((pos (position value *asprs-classification*)))
-      (when pos
-        (setf (ldb (byte 5 0) classification) pos)))))
+    (setf (ldb (byte 5 0) classification) value)))
+
+(defmethod human-readable-classification ((p point-data))
+  (let ((value (classification p)))
+    (if (< value (length *asprs-classification*))
+	(nth value *asprs-classification*)
+	:reserved)))
+
+(defmethod (setf human-readable-classification) (value (p point-data))
+  (let ((pos (position value *asprs-classification*)))
+    (when pos
+      (setf (classification p) pos))))
 
 (define-binary-class new-point-data ()
   ((x s4)
