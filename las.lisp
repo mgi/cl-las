@@ -365,18 +365,32 @@
     (setf (ldb (byte 1 15) gloubiboulga) (if value 1 0))))
 
 (defparameter *new-asprs-classification*
-  '(created unclassified ground
-    low-vegetation medium-vegetation high-vegetation
-    building low-point reserved water rail road-surface
-    reserved wire-guard wire-conductor transmission-tower
-    wire-structure-connector bridge-deck high-noise))
+  '(:created
+    :unclassified
+    :ground
+    :low-vegetation
+    :medium-vegetation
+    :high-vegetation
+    :building
+    :low-point
+    :reserved
+    :water
+    :rail
+    :road-surface
+    :reserved
+    :wire-guard
+    :wire-conductor
+    :transmission-tower
+    :wire-structure-connector
+    :bridge-deck
+    :high-noise))
 
 (defmethod classification ((p new-point-data))
   (with-slots (classification) p
     (cond ((< classification (length *new-asprs-classification*))
 	   (nth classification *new-asprs-classification*))
-	  ((< classification 64) 'reserved)
-	  (t 'user-definable))))
+	  ((< classification 64) :reserved)
+	  (t :user-definable))))
 
 (defmethod (setf classification) (value (p new-point-data))
   (with-slots (classification) p
