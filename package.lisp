@@ -27,5 +27,6 @@
    #:x-t
    #:y-t
    #:z-t
+   #:return-number
    #:las-number-of-points
    #:las-to-txt))
