@@ -516,6 +516,7 @@ should be correct."
   ((xs :initarg :xs :accessor waveform-xs)
    (ys :initarg :ys :accessor waveform-ys)
    (zs :initarg :zs :accessor waveform-zs)
+   (times :initarg :times :accessor waveform-times)
    (intensities :initarg :intensities :accessor waveform-intensities))
   (:documentation "Spacially positionned waveform."))
 
@@ -558,6 +559,7 @@ should be correct."
 	    with xs = (make-array n :element-type 'double-float)
 	    with ys = (make-array n :element-type 'double-float)
 	    with zs = (make-array n :element-type 'double-float)
+	    with times = (make-array n)
 	    with intensities = (make-array n :element-type `(unsigned-byte ,bps))
 	    for i below n
 	    for j downfrom (1- n)
@@ -565,8 +567,10 @@ should be correct."
 		 (setf (aref xs j) (+ (x point) (* (x-t point) time))
 		       (aref ys j) (+ (y point) (* (y-t point) time))
 		       (aref zs j) (+ (z point) (* (z-t point) time))
+		       (aref times j) (* j dt)
 		       (aref intensities j) (read-value (type-from-bits bps) (las-stream las))))
-	    finally (return (make-instance 'waveform :xs xs :ys ys :zs zs :intensities intensities))))))
+	    finally (return (make-instance 'waveform :xs xs :ys ys :zs zs :times times
+						     :intensities intensities))))))
 
 (defmethod projection ((las las))
   (let ((vlr-projection (find "LASF_Projection" (las-variable-length-records las)

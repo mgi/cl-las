@@ -10,6 +10,7 @@
    #:waveform-xs
    #:waveform-ys
    #:waveform-zs
+   #:waveform-times
    #:waveform-intensities
    #:classification
    #:human-readable-classification
