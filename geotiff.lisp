@@ -172,7 +172,7 @@
     (when (and model
 	       (zerop (tiff-tag-location model)))
       (ecase (value-offset model)
-	((1 2) (geowkt:parse (geowkt:get-online (get-cs-type keys))))
+	((1 2) (geowkt:wkt-from-code (get-cs-type keys)))
 	(3 ;; TODO geocentric
 	 )))))
 
