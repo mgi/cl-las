@@ -429,16 +429,6 @@
 (define-binary-class new-point-data-waveform (waveform-mixin new-point-data) ())
 (define-binary-class new-point-data-color-nir-waveform (waveform-mixin new-point-data-color-nir) ())
 
-(defmethod print-object ((p point-data) stream)
-  (with-accessors ((x x) (y y) (z z)) p
-    (print-unreadable-object (p stream)
-      (format stream "~d ~d ~d" x y z))))
-
-(defmethod print-object ((p new-point-data) stream)
-  (with-accessors ((x x) (y y) (z z)) p
-    (print-unreadable-object (p stream)
-      (format stream "~d ~d ~d" x y z))))
-
 (defparameter *point-data-classes*
   '(point-data
     point-data-gps
@@ -547,7 +537,10 @@ should be correct."
 	(wpd-vlr-content (find record-id vlrs :key #'wpd-key))))))
 
 (defgeneric waveform-temporal-spacing-of-point (point las)
-  (:documentation "Waveform temporal spacing in picoseconds (ps)."))
+  (:documentation "Waveform temporal spacing in picoseconds (ps).")
+  (:method (point las)
+    "Defaults to something useful: 1000 ps is a 15cm grid"
+    1000))
 
 (defmethod waveform-temporal-spacing-of-point ((point waveform-mixin) las)
   (let ((wpd (%get-wave-packet-descriptor-of-point point las)))
