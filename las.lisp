@@ -470,7 +470,7 @@
         (multiple-value-bind (pheader vlrs evlrs) (read-headers stream)
 	  ;; open external WPD if needed
 	  (when (member 'external-wave-data (global-encoding pheader))
-	    (let ((wpd-name (merge-pathnames (make-pathname :type "wpd") pathname)))
+	    (let ((wpd-name (merge-pathnames (make-pathname :type "wdp") pathname)))
 	      (if (probe-file wpd-name)
 		  (setf wpd-stream (open wpd-name :element-type '(unsigned-byte 8)))
 		  (error "Can't find ~a waveform file" wpd-name))))
