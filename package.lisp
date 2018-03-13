@@ -25,6 +25,7 @@
    #:y
    #:z
    #:intensity
+   #:scan-angle
    #:x-t
    #:y-t
    #:z-t

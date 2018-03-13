@@ -217,7 +217,7 @@
    (intensity u2)
    (gloubiboulga u1)
    (classification u1)
-   (scan-angle-rank s1)
+   (scan-angle s1)
    (user-data u1)
    (point-source-id u2)))
 
