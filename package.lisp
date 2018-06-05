@@ -1,6 +1,6 @@
 (defpackage :las
-  (:use #:common-lisp #:com.gigamonkeys.binary-data
-	#:com.gigamonkeys.binary-data.common-datatypes)
+  (:use #:common-lisp #:binary-io
+	#:binary-io.common-datatypes)
   (:export
    #:with-las
    #:read-point
