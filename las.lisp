@@ -590,7 +590,9 @@ should be correct."
        (unwind-protect
             (multiple-value-prog1
                 (let ((,las (make-las ,filename ,stream)))
-                  ,@body)
+                  (unwind-protect
+		       ,@body
+		    (when (las-wpd-stream ,las) (close (las-wpd-stream ,las)))))
               (setq ,abort nil))
          (when ,stream (close ,stream :abort ,abort))))))
 
