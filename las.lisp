@@ -9,48 +9,74 @@
 
 (define-binary-type 32char-string () (8bit-string :length 32 :terminator #\Nul))
 
-(define-binary-class public-header-legacy ()
-  ((file-signature (8bit-string :length 4 :terminator #\Nul))
-   (file-source-id u2)
-   (global-encoding global-encoding)
-   (project-id1 u4)
-   (project-id2 u2)
-   (project-id3 u2)
-   (project-id4 (vector :size 8 :type 'u1))
-   (version-major u1)
-   (version-minor u1)
-   (system-identifier 32char-string)
-   (generating-software 32char-string)
-   (file-creation-doy u2)
-   (file-creation-year u2)
-   (header-size u2)
-   (offset-to-point-data u4)
-   (number-of-variable-length-records u4)
-   (point-data-format-id u1)
-   (point-data-record-length u2)
-   (%legacy-number-of-points u4)
-   (%legacy-number-of-points-by-return (vector :size 5 :type 'u4))
-   (x-scale float8)
-   (y-scale float8)
-   (z-scale float8)
-   (x-offset float8)
-   (y-offset float8)
-   (z-offset float8)
-   (%max-x float8)
-   (%min-x float8)
-   (%max-y float8)
-   (%min-y float8)
-   (%max-z float8)
-   (%min-z float8)))
+(defparameter *point-data-classes*
+  '(point-data
+    point-data-gps
+    point-data-color
+    point-data-color-gps
+    point-data-gps-waveform
+    point-data-color-gps-waveform
+    new-point-data
+    new-point-data-color
+    new-point-data-color-nir
+    new-point-data-waveform
+    new-point-data-color-nir-waveform))
+
+(defun current-doy-year ()
+  (labels ((leap-year-p (year)
+	     (destructuring-bind (fh h f)
+		 (mapcar #'(lambda (n) (zerop (mod year n))) '(400 100 4))
+	       (or fh (and (not h) f)))))
+    (multiple-value-bind (second minute hour date month year day-of-week dst-p tz) (get-decoded-time)
+      (declare (ignore second minute hour day-of-week dst-p tz))
+      (let ((month-len (list 31 (if (leap-year-p year) 29 28) 31 30 31 30 31 31 30 31 30 31)))
+	(values (reduce #'+ (cons date (subseq month-len 0 (1- month))))
+		year)))))
+
+(multiple-value-bind (doy year) (current-doy-year)
+  (let ((point-data-id 0))
+    (define-binary-class public-header-legacy ()
+      ((file-signature (8bit-string :length 4 :terminator #\Nul) "LASF")
+       (file-source-id u2 0)
+       (global-encoding global-encoding '(synthetic-return-point))
+       (project-id1 u4 0)
+       (project-id2 u2 0)
+       (project-id3 u2 0)
+       (project-id4 (vector :size 8 :type 'u1) #(0 0 0 0 0 0 0 0))
+       (version-major u1 1)
+       (version-minor u1 4)
+       (system-identifier 32char-string "")
+       (generating-software 32char-string "cl-las")
+       (file-creation-doy u2 doy)
+       (file-creation-year u2 year)
+       (header-size u2)
+       (offset-to-point-data u4 0)
+       (number-of-variable-length-records u4 0)
+       (point-data-format-id u1 point-data-id)
+       (point-data-record-length u2 (object-size (nth point-data-id *point-data-classes*)))
+       (%legacy-number-of-points u4 0)
+       (%legacy-number-of-points-by-return (vector :size 5 :type 'u4) #(0 0 0 0 0))
+       (x-scale float8 1.0)
+       (y-scale float8 1.0)
+       (z-scale float8 1.0)
+       (x-offset float8 0.0)
+       (y-offset float8 0.0)
+       (z-offset float8 0.0)
+       (%max-x float8 0.0)
+       (%min-x float8 0.0)
+       (%max-y float8 0.0)
+       (%min-y float8 0.0)
+       (%max-z float8 0.0)
+       (%min-z float8 0.0)))))
 
 (define-binary-class public-header-1.3 (public-header-legacy)
-  ((start-of-waveform-data-packet u8)))
+  ((start-of-waveform-data-packet u8 0)))
 
 (define-binary-class public-header (public-header-1.3)
-  ((start-of-first-extended-vlr u8)
-   (number-of-extended-vlr u4)
-   (%number-of-points u8)
-   (%number-of-points-by-return (vector :size 15 :type 'u8))))
+  ((start-of-first-extended-vlr u8 0)
+   (number-of-extended-vlr u4 0)
+   (%number-of-points u8 0)
+   (%number-of-points-by-return (vector :size 15 :type 'u8) (apply #'vector (loop repeat 15 collect 0)))))
 
 (defgeneric number-of-points (header)
   (:documentation "Unified number of points between legacy 32bit
@@ -147,6 +173,16 @@
 	   (file-position fd 0)
 	   (read-value 'public-header-legacy fd))
 	  (t h))))
+
+(defun write-public-header (fd h)
+  (file-position fd 0)
+  (cond ((and (= (version-major h) 1)
+	      (= (version-minor h) 3))
+	 (write-value 'public-header-1.3 fd h))
+	((and (= (version-major h) 1)
+	      (< (version-minor h) 3))
+	 (write-value 'public-header-legacy fd h))
+	(t (write-value 'public-header fd h))))
 
 (defclass vlr-mixin ()
   ((user-id :initarg :user-id :accessor vlr-user-id)
@@ -429,36 +465,26 @@
 (define-binary-class new-point-data-waveform (waveform-mixin new-point-data) ())
 (define-binary-class new-point-data-color-nir-waveform (waveform-mixin new-point-data-color-nir) ())
 
-(defparameter *point-data-classes*
-  '(point-data
-    point-data-gps
-    point-data-color
-    point-data-color-gps
-    point-data-gps-waveform
-    point-data-color-gps-waveform
-    new-point-data
-    new-point-data-color
-    new-point-data-color-nir
-    new-point-data-waveform
-    new-point-data-color-nir-waveform))
-
 (defclass las ()
   ((%pathname :initarg :pathname :reader las-pathname)
    (%stream :initarg :stream :reader las-stream)
    (%wpd-stream :initarg :wpd-stream :initform nil :accessor las-wpd-stream
 		:documentation "Stream to an external Wave Packet Descriptor.")
    (%header :accessor las-public-header)
-   (%vlrecords :accessor las-variable-length-records)
    (%point-class :accessor las-point-class)
-   (%evlrecords :accessor las-extended-variable-length-records)))
+   (%vlrecords :initform nil :accessor las-variable-length-records)
+   (%evlrecords :initform nil :accessor las-extended-variable-length-records)))
 
 (defun make-las (pathname stream)
   (let ((las (make-instance 'las :pathname pathname :stream stream)))
-    (assert (=  (point-data-record-length (las-public-header las)) (object-size (las-point-class las)))
-	    () "Point data contains user-specific extra bytes.")
+    (when (slot-boundp las '%header)
+      (assert (=  (point-data-record-length (las-public-header las)) (object-size (las-point-class las)))
+	      () "Point data contains user-specific extra bytes."))
     las))
 
 (defmethod initialize-instance :after ((object las) &key)
+  "After las object creation, read slots' data from the input stream
+or just instantiate slots in case of an output stream."
   (let ((stream (las-stream object)))
     (when (streamp stream)
       (with-accessors ((pathname las-pathname)
@@ -467,20 +493,26 @@
                        (vlrecords las-variable-length-records)
                        (point-class las-point-class)
 		       (evlrecords las-extended-variable-length-records)) object
-        (multiple-value-bind (pheader vlrs evlrs) (read-headers stream)
-	  ;; open external WPD if needed
-	  (when (member 'external-wave-data (global-encoding pheader))
-	    (let ((wpd-name (merge-pathnames (make-pathname :type "wdp") pathname)))
-	      (if (probe-file wpd-name)
-		  (setf wpd-stream (open wpd-name :element-type '(unsigned-byte 8)))
-		  (error "Can't find ~a waveform file" wpd-name))))
-          ;; go to data point in stream
-          (file-position stream (offset-to-point-data pheader))
-          ;; fill missing slots
-          (setf public-header pheader
-                vlrecords vlrs
-                point-class (nth (point-data-format-id pheader) *point-data-classes*)
-		evlrecords evlrs))))))
+	(cond ((input-stream-p stream)
+               (multiple-value-bind (pheader vlrs evlrs) (read-headers stream)
+		 ;; open external WDP if needed
+		 (when (member 'external-wave-data (global-encoding pheader))
+		   (let ((wpd-name (merge-pathnames (make-pathname :type "wdp") pathname)))
+		     (if (probe-file wpd-name)
+			 (setf wpd-stream (open wpd-name :element-type '(unsigned-byte 8)))
+			 (error "Can't find ~a waveform file" wpd-name))))
+		 ;; go to data point in stream
+		 (file-position stream (offset-to-point-data pheader))
+		 ;; fill missing slots
+		 (setf public-header pheader
+                       vlrecords vlrs
+                       point-class (nth (point-data-format-id pheader) *point-data-classes*)
+		       evlrecords evlrs)))
+	      ((output-stream-p stream)
+	       (let ((pheader (make-instance 'public-header)))
+		 (setf (header-size pheader) (object-size pheader)
+		       public-header pheader
+		       point-class (nth (point-data-format-id pheader) *point-data-classes*)))))))))
 
 (defun read-point (las &key scale-p)
   "Read a point in the given LAS. XXX position into the LAS stream
@@ -583,18 +615,23 @@ should be correct."
     (when vlr-projection
       (get-projection-wkt (projection-vlr-keys vlr-projection)))))
 
-(defmacro with-las ((las filename) &body body)
-  (alexandria:with-gensyms (stream abort)
-    `(let ((,stream (open ,filename :element-type '(unsigned-byte 8)))
-           (,abort t))
+(defun open-las-file (filename &key (direction :input) if-exists if-does-not-exist)
+  (let ((stream (open filename
+		      :element-type '(unsigned-byte 8)
+		      :direction direction :if-exists if-exists :if-does-not-exist if-does-not-exist)))
+    (make-las filename stream)))
+
+(defmacro with-las ((las filename &rest options) &body body)
+  (alexandria:with-gensyms (abort)
+    `(let ((,las (open-las-file ,filename ,@options))
+	   (,abort t))
        (unwind-protect
             (multiple-value-prog1
-                (let ((,las (make-las ,filename ,stream)))
-                  (unwind-protect
-		       ,@body
-		    (when (las-wpd-stream ,las) (close (las-wpd-stream ,las)))))
+              (unwind-protect
+		   ,@body
+		(when (las-wpd-stream ,las) (close (las-wpd-stream ,las))))
               (setq ,abort nil))
-         (when ,stream (close ,stream :abort ,abort))))))
+         (when (las-stream ,las) (close (las-stream ,las) :abort ,abort))))))
 
 (defmethod las-number-of-points ((object las))
   (number-of-points (las-public-header object)))
