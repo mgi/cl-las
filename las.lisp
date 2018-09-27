@@ -678,7 +678,7 @@ should be correct."
        (unwind-protect
             (multiple-value-prog1
               (unwind-protect
-		   ,@body
+		   (progn,@body)
 		(when (las-wpd-stream ,las) (close (las-wpd-stream ,las))))
               (setq ,abort nil))
          (when (las-stream ,las) (close (las-stream ,las) :abort ,abort))))))
