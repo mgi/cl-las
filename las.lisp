@@ -572,6 +572,25 @@ should be correct."
 				     (* index (object-size (las-point-class las)))))
   (read-point las :scale-p scale-p))
 
+(defun write-point (point las &key unscale-p)
+  "Write a point in the given LAS. XXX position int the LAS stream
+  should be correct."
+  (when unscale-p
+    (with-accessors ((x x) (y y) (z z)) point
+      (with-accessors ((x-scale x-scale) (x-offset x-offset)
+                       (y-scale y-scale) (y-offset y-offset)
+                       (z-scale z-scale) (z-offset z-offset)) (las-public-header las)
+        (setf x (/ (- x x-offset) x-scale)
+              y (/ (- y y-offset) y-scale)
+              z (/ (- z z-offset) z-scale)))))
+  (write-value (las-point-class las) (las-stream las) point))
+
+(defun write-point-at (point index las &key unscale-p)
+  "Write a point at a given index"
+  (file-position (las-stream las) (+ (offset-to-point-data (las-public-header las))
+				     (* index (object-size (las-point-class las)))))
+  (write-point point las :unscale-p unscale-p))
+
 (defmacro make-getter (fun-name low-level-name)
   `(defun ,fun-name (las)
      (,low-level-name (las-public-header las))))

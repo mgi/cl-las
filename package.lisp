@@ -6,6 +6,8 @@
    #:read-point
    #:read-point-at
    #:write-headers
+   #:write-point
+   #:write-point-at
    #:waveform-of-point
    #:waveform-temporal-spacing-of-point
    #:waveform-xs
