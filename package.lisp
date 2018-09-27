@@ -5,6 +5,7 @@
    #:with-las
    #:read-point
    #:read-point-at
+   #:write-headers
    #:waveform-of-point
    #:waveform-temporal-spacing-of-point
    #:waveform-xs

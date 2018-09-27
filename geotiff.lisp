@@ -181,3 +181,10 @@
     (when (and type
 	       (zerop (tiff-tag-location type)))
       (value-offset type))))
+
+(defun geokey-from-wkt-code (code)
+  (let ((keys (list (make-instance 'geokey-key :key-id +gt-model-type-key+ :char-count 1 :tiff-tag-location 0 :value-offset 1)
+		    (make-instance 'geokey-key :key-id +gt-raster-type-key+ :char-count 1 :tiff-tag-location 0 :value-offset 2)
+		    (make-instance 'geokey-key :key-id +projected-cs-type-key+ :char-count 1 :tiff-tag-location 0 :value-offset code))))
+    (values (make-instance 'geokey-directory :number-of-keys (length keys))
+	    keys)))

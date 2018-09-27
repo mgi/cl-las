@@ -136,9 +136,9 @@
    (digitizer-offset float8)))
 
 (define-binary-class geokey-directory ()
-  ((key-directory-version u2)
-   (key-revision u2)
-   (minor-revision u2)
+  ((key-directory-version u2 1)
+   (key-revision u2 1)
+   (minor-revision u2 0)
    (number-of-keys u2)))
 
 (define-binary-class geokey-key ()
@@ -242,6 +242,47 @@
          (vlrecords (read-vlrs header fd))
 	 (evlrecords (read-evlrs header fd)))
     (values header vlrecords evlrecords)))
+
+(defun write-vlr (stream vlr)
+  (with-accessors ((record-id vlr-record-id)
+		   (user-id vlr-user-id)) vlr
+    (cond ((string= user-id "LASF_Projection")
+	   (with-accessors ((directory projection-vlr-directory)
+			    (keys projection-vlr-keys)) vlr
+	     (let ((sz (+ (object-size 'geokey-directory)
+			  (* (object-size 'geokey-key) (length keys)))))
+	       (write-value 'variable-length-record-header stream
+			    (make-instance 'variable-length-record-header
+					   :record-id record-id :user-id user-id :record-length-after-header sz))
+	       (write-value 'geokey-directory stream directory)
+	       (dolist (key keys)
+		 (write-value 'geokey-key stream key)))))
+	  ((string= user-id "LASF_Spec")
+	   (cond ((and (> record-id 99) (< record-id 355))
+		  (with-accessors ((content wpd-vlr-content)) vlr
+		    (let ((sz (object-size content)))
+		      (write-value 'variable-length-record-header stream
+				   (make-instance 'variable-length-record-header
+						  :record-id record-id
+						  :user-id user-id
+						  :record-length-after-header sz))
+		      (write-value 'waveform-packet-descriptor stream content)))))))))
+
+(defun write-evlr (stream evlr)
+  (write-value 'extended-variable-length-record-header stream evlr)
+  (file-position stream (+ (file-position stream) (record-length-after-header evlr))))
+
+(defun write-headers (las)
+  (with-accessors ((stream las-stream)
+		   (pheader las-public-header)
+		   (vlrs las-variable-length-records)
+		   (evlrs las-extended-variable-length-records)) las
+    (write-public-header stream pheader)
+    (dolist (vlr vlrs)
+      (write-vlr stream vlr))
+    (file-position stream (start-of-evlrs pheader))
+    (dolist (evlr evlrs)
+      (write-evlr stream evlr))))
 
 (define-binary-class point-data ()
   ((x s4)
@@ -611,6 +652,18 @@ should be correct."
 			      :key #'vlr-user-id :test #'string=)))
     (when vlr-projection
       (get-projection-wkt (projection-vlr-keys vlr-projection)))))
+
+(defmethod (setf projection) (wkt-code (las las))
+  (with-accessors ((header las-public-header)
+		   (vlrs las-variable-length-records)) las
+    (let ((user-id "LASF_Projection"))
+      (multiple-value-bind (directory keys) (geokey-from-wkt-code wkt-code)
+	(setf vlrs (cons
+		    (make-instance 'projection-vlr :record-id 34735 :user-id user-id
+						   :directory directory :keys keys)
+		    (remove user-id vlrs :key #'vlr-user-id :test #'string=))
+	      ;; update number of variable length record
+	      (number-of-variable-length-records header) (length vlrs))))))
 
 (defun open-las-file (filename &key (direction :input) if-exists if-does-not-exist)
   (let ((stream (open filename
