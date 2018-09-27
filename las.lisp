@@ -651,13 +651,13 @@ should be correct."
   (let ((vlr-projection (find "LASF_Projection" (las-variable-length-records las)
 			      :key #'vlr-user-id :test #'string=)))
     (when vlr-projection
-      (get-projection-wkt (projection-vlr-keys vlr-projection)))))
+      (get-projection-code (projection-vlr-keys vlr-projection)))))
 
-(defmethod (setf projection) (wkt-code (las las))
+(defmethod (setf projection) (epsg-code (las las))
   (with-accessors ((header las-public-header)
 		   (vlrs las-variable-length-records)) las
     (let ((user-id "LASF_Projection"))
-      (multiple-value-bind (directory keys) (geokey-from-wkt-code wkt-code)
+      (multiple-value-bind (directory keys) (make-projection-geokey epsg-code)
 	(setf vlrs (cons
 		    (make-instance 'projection-vlr :record-id 34735 :user-id user-id
 						   :directory directory :keys keys)

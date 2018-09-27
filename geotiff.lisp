@@ -167,12 +167,12 @@
   the Citation key, comprise the only fully implemented keys in this
   section, at present.")
 
-(defun get-projection-wkt (keys)
+(defun get-projection-code (keys)
   (let ((model (find +gt-model-type-key+ keys :key #'key-id)))
     (when (and model
 	       (zerop (tiff-tag-location model)))
       (ecase (value-offset model)
-	((1 2) (geowkt:wkt-from-code (get-cs-type keys)))
+	((1 2) (get-cs-type keys))
 	(3 ;; TODO geocentric
 	 )))))
 
@@ -182,7 +182,7 @@
 	       (zerop (tiff-tag-location type)))
       (value-offset type))))
 
-(defun geokey-from-wkt-code (code)
+(defun make-projection-geokey (code)
   (let ((keys (list (make-instance 'geokey-key :key-id +gt-model-type-key+ :char-count 1 :tiff-tag-location 0 :value-offset 1)
 		    (make-instance 'geokey-key :key-id +gt-raster-type-key+ :char-count 1 :tiff-tag-location 0 :value-offset 2)
 		    (make-instance 'geokey-key :key-id +projected-cs-type-key+ :char-count 1 :tiff-tag-location 0 :value-offset code))))
