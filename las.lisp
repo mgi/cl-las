@@ -62,12 +62,12 @@
        (x-offset float8 0)
        (y-offset float8 0)
        (z-offset float8 0)
-       (%max-x float8 0)
-       (%min-x float8 0)
-       (%max-y float8 0)
-       (%min-y float8 0)
-       (%max-z float8 0)
-       (%min-z float8 0)))))
+       (%max-x float8)
+       (%min-x float8)
+       (%max-y float8)
+       (%min-y float8)
+       (%max-z float8)
+       (%min-z float8)))))
 
 (define-binary-class public-header-1.3 (public-header-legacy)
   ((start-of-waveform-data-packet u8 0)))
@@ -96,7 +96,9 @@
   (%number-of-points header))
 
 (defmethod (setf number-of-points) (value (header public-header))
-  (setf (%number-of-points header) value))
+  ;; set both. old and new.
+  (setf (%number-of-points header) value
+	(%legacy-number-of-points header) value))
 
 (defgeneric number-of-points-by-return (header)
   (:documentation "Unified number of points by return between legacy
@@ -116,7 +118,9 @@
   (%number-of-points-by-return header))
 
 (defmethod (setf number-of-points-by-return) (value (header public-header))
-  (setf (%number-of-points-by-return header) value))
+  ;; set both.
+  (setf (%number-of-points-by-return header) value
+	(%legacy-number-of-points-by-return header) (subseq value 0 5)))
 
 (defgeneric start-of-evlrs (header)
   (:documentation "Unified start of EVLRs between new and before
@@ -300,6 +304,11 @@
     (write-public-header stream pheader)
     (dolist (vlr vlrs)
       (write-vlr stream vlr))
+    ;; Enforce valid offset-to-point-data: update it after having
+    ;; wrote header+vlrs and then rewrite the updated header
+    (setf (offset-to-point-data pheader) (file-position stream))
+    (write-public-header stream pheader)
+    ;; ELVRS
     (file-position stream (start-of-evlrs pheader))
     (dolist (evlr evlrs)
       (write-evlr stream evlr))))
@@ -592,6 +601,21 @@ should be correct."
 				     (* index (object-size (las-point-class las)))))
   (read-point las :scale-p scale-p))
 
+(defun update-bounding-box (header x y z)
+  (macrolet ((update-slot (header slot)
+	       (let ((min (find-symbol (format nil "%MIN-~a" slot)))
+		     (max (find-symbol (format nil "%MAX-~a" slot))))
+		 `(progn
+		    (when (or (not (slot-boundp ,header ',min))
+			      (< ,slot (,min ,header)))
+		      (setf (,min ,header) ,slot))
+		    (when (or (not (slot-boundp ,header ',max))
+			      (> ,slot (,max ,header)))
+		      (setf (,max ,header) ,slot))))))
+    (update-slot header x)
+    (update-slot header y)
+    (update-slot header z)))
+
 (defun write-point (point las &key unscale-p)
   "Write a point in the given LAS. XXX position int the LAS stream
   should be correct."
@@ -601,13 +625,7 @@ should be correct."
     ;; LAS point file data, specified in the coordinate system of the
     ;; LAS data." This was not clear to me but others softwares LAS
     ;; output use a bounding box in the coordinate system unit.
-    (with-accessors ((header las-public-header)) las
-      (when (< x (%min-x header)) (setf (%min-x header) x))
-      (when (> x (%max-x header)) (setf (%max-x header) x))
-      (when (< y (%min-y header)) (setf (%min-y header) y))
-      (when (> y (%max-y header)) (setf (%max-y header) y))
-      (when (< z (%min-z header)) (setf (%min-z header) z))
-      (when (> z (%max-z header)) (setf (%max-z header) z)))
+    (update-bounding-box (las-public-header las) x y z)
     (when unscale-p
       (with-accessors ((x-scale x-scale) (x-offset x-offset)
 		       (y-scale y-scale) (y-offset y-offset)
@@ -623,16 +641,21 @@ should be correct."
 				     (* index (object-size (las-point-class las)))))
   (write-point point las :unscale-p unscale-p))
 
-(defmacro make-getter (fun-name low-level-name)
-  `(defun ,fun-name (las)
-     (,low-level-name (las-public-header las))))
+(defmacro make-get/set (fun-name low-level-name)
+  (let ((las (gensym))
+	(value (gensym)))
+    `(progn
+       (defun ,fun-name (,las)
+	 (,low-level-name (las-public-header ,las)))
+       (defun (setf ,fun-name) (,value ,las)
+	 (setf (,low-level-name (las-public-header ,las)) ,value)))))
 
-(make-getter max-x %max-x)
-(make-getter min-x %min-x)
-(make-getter max-y %max-y)
-(make-getter min-y %min-y)
-(make-getter max-z %max-z)
-(make-getter min-z %min-z)
+(make-get/set max-x %max-x)
+(make-get/set min-x %min-x)
+(make-get/set max-y %max-y)
+(make-get/set min-y %min-y)
+(make-get/set max-z %max-z)
+(make-get/set min-z %min-z)
 
 (defclass waveform ()
   ((xs :initarg :xs :accessor waveform-xs)
@@ -777,17 +800,15 @@ should be correct."
   (with-las (las lasfile :direction :output :if-exists :supersede :if-does-not-exist :create)
     (let ((header (las-public-header las)))
       (setf (number-of-points header) (* nx ny)
-	    ;; no VLRS
-	    (offset-to-point-data header) (object-size header))
-      (loop with off-x = 414800
-	    with off-y = -130000
-	    with epsilon-pi = (/ pi 100)
+	    (number-of-points-by-return header) (vector (* nx ny) 0 0 0 0 0 0 0 0 0 0 0 0 0 0)
+	    (projection las) 2154)
+      (loop with epsilon-pi = (/ pi 10)
 	    for i below nx
-	    for x from off-x by 1
+	    for x from 294118
 	    do (loop for j below ny
-		     for y from off-y by 1
-		     do (let ((z (round (* 5 (sin (/ (- x off-x) epsilon-pi))
-					   (sin (/ (- off-y y) epsilon-pi))))))
+		     for y from 6698557
+		     do (let ((z (round (* 10 (sin (* i epsilon-pi))
+					   (sin (* j epsilon-pi))))))
 			  (write-point-at (make-instance (las-point-class las) :x x :y y :z z
 									       :intensity 0
 									       :gloubiboulga 0
@@ -796,6 +817,5 @@ should be correct."
 									       :user-data 0
 									       :point-source-id 0)
 					  (+ j (* ny i)) las)
-			  (when (and (< i 10) (< j 10)) (format t "~@{~a~^ ~}~%" i j x y z)))))
-      #+nil(setf (projection las) 2154)
-      (write-headers las))))
+			  (when (and (< i 30) (< j 30)) (format t "~@{~a~^ ~}~%" i j x y z))))))
+    (write-headers las)))
