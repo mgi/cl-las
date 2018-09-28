@@ -171,13 +171,6 @@
    (char-count u2)
    (value-offset u2)))
 
-(defmethod print-object ((key geokey-key) stream)
-  (with-accessors ((id key-id)
-		   (tag tiff-tag-location)
-		   (val value-offset)) key
-    (print-unreadable-object (key stream :type t)
-      (format stream "~d ~d ~d" id tag val))))
-
 (define-binary-class extended-variable-length-record-header ()
   ((reserved u2)
    (user-id (8bit-string :length 16 :terminator #\Nul))
