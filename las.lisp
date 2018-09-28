@@ -56,18 +56,18 @@
        (point-data-record-length u2 (object-size (nth point-data-id *point-data-classes*)))
        (%legacy-number-of-points u4 0)
        (%legacy-number-of-points-by-return (vector :size 5 :type 'u4) #(0 0 0 0 0))
-       (x-scale float8 1.0)
-       (y-scale float8 1.0)
-       (z-scale float8 1.0)
-       (x-offset float8 0.0)
-       (y-offset float8 0.0)
-       (z-offset float8 0.0)
-       (%max-x float8 0.0)
-       (%min-x float8 0.0)
-       (%max-y float8 0.0)
-       (%min-y float8 0.0)
-       (%max-z float8 0.0)
-       (%min-z float8 0.0)))))
+       (x-scale float8 1)
+       (y-scale float8 1)
+       (z-scale float8 1)
+       (x-offset float8 0)
+       (y-offset float8 0)
+       (z-offset float8 0)
+       (%max-x float8 0)
+       (%min-x float8 0)
+       (%max-y float8 0)
+       (%min-y float8 0)
+       (%max-z float8 0)
+       (%min-z float8 0)))))
 
 (define-binary-class public-header-1.3 (public-header-legacy)
   ((start-of-waveform-data-packet u8 0)))
@@ -82,21 +82,41 @@
   (:documentation "Unified number of points between legacy 32bit
   version and new 64bit one."))
 
+(defgeneric (setf number-of-points) (value header)
+  (:documentation "Unified setter for number of points between legacy
+  32bit version and new 64bit one."))
+
 (defmethod number-of-points ((header public-header-legacy))
   (%legacy-number-of-points header))
 
+(defmethod (setf number-of-points) (value (header public-header-legacy))
+  (setf (%legacy-number-of-points header) value))
+
 (defmethod number-of-points ((header public-header))
   (%number-of-points header))
+
+(defmethod (setf number-of-points) (value (header public-header))
+  (setf (%number-of-points header) value))
 
 (defgeneric number-of-points-by-return (header)
   (:documentation "Unified number of points by return between legacy
   and new."))
 
+(defgeneric (setf number-of-points-by-return) (value header)
+  (:documentation "Unified setter for number of points by return
+  between legacy and new."))
+
 (defmethod number-of-points-by-return ((header public-header-legacy))
   (%legacy-number-of-points-by-return header))
 
+(defmethod (setf number-of-points-by-return) (value (header public-header-legacy))
+  (setf (%legacy-number-of-points-by-return header) value))
+
 (defmethod number-of-points-by-return ((header public-header))
   (%number-of-points-by-return header))
+
+(defmethod (setf number-of-points-by-return) (value (header public-header))
+  (setf (%number-of-points-by-return header) value))
 
 (defgeneric start-of-evlrs (header)
   (:documentation "Unified start of EVLRs between new and before
@@ -575,14 +595,26 @@ should be correct."
 (defun write-point (point las &key unscale-p)
   "Write a point in the given LAS. XXX position int the LAS stream
   should be correct."
-  (when unscale-p
-    (with-accessors ((x x) (y y) (z z)) point
+  (with-accessors ((x x) (y y) (z z)) point
+    ;; Update bounding box. Done before unscaling. The spec says: "The
+    ;; max and min data fields are the actual unscaled extents of the
+    ;; LAS point file data, specified in the coordinate system of the
+    ;; LAS data." This was not clear to me but others softwares LAS
+    ;; output use a bounding box in the coordinate system unit.
+    (with-accessors ((header las-public-header)) las
+      (when (< x (%min-x header)) (setf (%min-x header) x))
+      (when (> x (%max-x header)) (setf (%max-x header) x))
+      (when (< y (%min-y header)) (setf (%min-y header) y))
+      (when (> y (%max-y header)) (setf (%max-y header) y))
+      (when (< z (%min-z header)) (setf (%min-z header) z))
+      (when (> z (%max-z header)) (setf (%max-z header) z)))
+    (when unscale-p
       (with-accessors ((x-scale x-scale) (x-offset x-offset)
-                       (y-scale y-scale) (y-offset y-offset)
-                       (z-scale z-scale) (z-offset z-offset)) (las-public-header las)
+		       (y-scale y-scale) (y-offset y-offset)
+		       (z-scale z-scale) (z-offset z-offset)) (las-public-header las)
         (setf x (/ (- x x-offset) x-scale)
-              y (/ (- y y-offset) y-scale)
-              z (/ (- z z-offset) z-scale)))))
+	      y (/ (- y y-offset) y-scale)
+	      z (/ (- z z-offset) z-scale)))))
   (write-value (las-point-class las) (las-stream las) point))
 
 (defun write-point-at (point index las &key unscale-p)
@@ -681,7 +713,7 @@ should be correct."
 		    (make-instance 'projection-vlr :record-id 34735 :user-id user-id
 						   :directory directory :keys keys)
 		    (remove user-id vlrs :key #'vlr-user-id :test #'string=))
-	      ;; update number of variable length record
+	      ;; Update number of variable length record
 	      (number-of-variable-length-records header) (length vlrs))))))
 
 (defun open-las-file (filename &key (direction :input) if-exists if-does-not-exist)
@@ -740,3 +772,30 @@ should be correct."
 		  for intensity across intensities
 		  do (format out "~&~f ~f ~f ~d~%" x y z intensity)))
 	  (terpri out))))))
+
+(defun write-test (lasfile nx ny)
+  (with-las (las lasfile :direction :output :if-exists :supersede :if-does-not-exist :create)
+    (let ((header (las-public-header las)))
+      (setf (number-of-points header) (* nx ny)
+	    ;; no VLRS
+	    (offset-to-point-data header) (object-size header))
+      (loop with off-x = 414800
+	    with off-y = -130000
+	    with epsilon-pi = (/ pi 100)
+	    for i below nx
+	    for x from off-x by 1
+	    do (loop for j below ny
+		     for y from off-y by 1
+		     do (let ((z (round (* 5 (sin (/ (- x off-x) epsilon-pi))
+					   (sin (/ (- off-y y) epsilon-pi))))))
+			  (write-point-at (make-instance (las-point-class las) :x x :y y :z z
+									       :intensity 0
+									       :gloubiboulga 0
+									       :classification 0
+									       :scan-angle 0
+									       :user-data 0
+									       :point-source-id 0)
+					  (+ j (* ny i)) las)
+			  (when (and (< i 10) (< j 10)) (format t "~@{~a~^ ~}~%" i j x y z)))))
+      #+nil(setf (projection las) 2154)
+      (write-headers las))))
