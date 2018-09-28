@@ -62,6 +62,8 @@
        (x-offset float8 0)
        (y-offset float8 0)
        (z-offset float8 0)
+       ;; XXX following slots should remain unbound to be correctly
+       ;; updated in when writing points.
        (%max-x float8)
        (%min-x float8)
        (%max-y float8)
@@ -304,8 +306,9 @@
     (write-public-header stream pheader)
     (dolist (vlr vlrs)
       (write-vlr stream vlr))
-    ;; Enforce valid offset-to-point-data: update it after having
-    ;; wrote header+vlrs and then rewrite the updated header
+    ;; Just to be safe, enforce valid offset-to-point-data: update it
+    ;; after having wrote header+vlrs and then rewrite the updated
+    ;; header
     (setf (offset-to-point-data pheader) (file-position stream))
     (write-public-header stream pheader)
     ;; ELVRS
@@ -314,15 +317,15 @@
       (write-evlr stream evlr))))
 
 (define-binary-class point-data ()
-  ((x s4)
-   (y s4)
-   (z s4)
-   (intensity u2)
-   (gloubiboulga u1)
-   (classification u1)
-   (scan-angle s1)
-   (user-data u1)
-   (point-source-id u2)))
+  ((x s4 0)
+   (y s4 0)
+   (z s4 0)
+   (intensity u2 0)
+   (gloubiboulga u1 0)
+   (classification u1 0)
+   (scan-angle s1 0)
+   (user-data u1 0)
+   (point-source-id u2 0)))
 
 (defgeneric return-number (point))
 (defgeneric (setf return-number) (value point))
@@ -404,16 +407,16 @@
       (setf (classification p) pos))))
 
 (define-binary-class new-point-data ()
-  ((x s4)
-   (y s4)
-   (z s4)
-   (intensity u2)
-   (gloubiboulga u2)
-   (classification u1)
-   (user-data u1)
-   (scan-angle s2)
-   (point-source-id u2)
-   (gps-time float8)))
+  ((x s4 0)
+   (y s4 0)
+   (z s4 0)
+   (intensity u2 0)
+   (gloubiboulga u2 0)
+   (classification u1 0)
+   (user-data u1 0)
+   (scan-angle s2 0)
+   (point-source-id u2 0)
+   (gps-time float8 0)))
 
 (defmethod return-number ((p new-point-data))
   (with-slots (gloubiboulga) p
@@ -804,27 +807,20 @@ should be correct."
 		  do (format out "~&~f ~f ~f ~d~%" x y z intensity)))
 	  (terpri out))))))
 
-(defun write-test (lasfile nx ny)
+(defun write-test (lasfile &optional (nx 500) (ny 500))
   (with-las (las lasfile :direction :output :if-exists :supersede :if-does-not-exist :create)
     (let ((header (las-public-header las)))
       (setf (number-of-points header) (* nx ny)
 	    (number-of-points-by-return header) (vector (* nx ny) 0 0 0 0 0 0 0 0 0 0 0 0 0 0)
+	    ;; Lambert 93… because la France!
 	    (projection las) 2154)
-      (loop with epsilon-pi = (/ pi 10)
-	    for i below nx
-	    for x from 294118
-	    do (loop for j below ny
-		     for y from 6698557
-		     do (let ((z (round (* 10 (sin (* i epsilon-pi))
-					   (sin (* j epsilon-pi))))))
-			  (write-point-at (make-instance (las-point-class las) :x x :y y :z z
-									       :intensity 0
-									       :gloubiboulga 0
-									       :classification 0
-									       :scan-angle 0
-									       :user-data 0
-									       :point-source-id 0)
-					  (+ j (* ny i)) las)))))
+      (loop with epsilon-pi = (/ pi 100)
+	    for x below nx
+	    do (loop for y below ny
+		     do (let ((z (round (* 10 (sin (* x epsilon-pi))
+					   (sin (* y epsilon-pi))))))
+			  (write-point-at (make-instance (las-point-class las) :x x :y y :z z)
+					  (+ y (* ny x)) las)))))
     ;; Bounding box has been updated during point writing so output
     ;; headers last.
     (write-headers las)))
