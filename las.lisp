@@ -754,16 +754,16 @@ should be correct."
     (make-las filename stream)))
 
 (defmacro with-las ((las filename &rest options) &body body)
-  (alexandria:with-gensyms (abort)
+  (let ((abortp (gensym)))
     `(let ((,las (open-las-file ,filename ,@options))
-	   (,abort t))
+	   (,abortp t))
        (unwind-protect
             (multiple-value-prog1
               (unwind-protect
 		   (progn,@body)
 		(when (las-wpd-stream ,las) (close (las-wpd-stream ,las))))
-              (setq ,abort nil))
-         (when (las-stream ,las) (close (las-stream ,las) :abort ,abort))))))
+              (setq ,abortp nil))
+         (when (las-stream ,las) (close (las-stream ,las) :abort ,abortp))))))
 
 (defmethod las-number-of-points ((object las))
   (number-of-points (las-public-header object)))
