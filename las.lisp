@@ -203,7 +203,8 @@
 
 (defclass vlr-mixin ()
   ((user-id :initarg :user-id :accessor vlr-user-id)
-   (record-id :initarg :record-id :accessor vlr-record-id))
+   (record-id :initarg :record-id :accessor vlr-record-id)
+   (disk-size :initarg :disk-size :accessor vlr-disk-size))
   (:documentation "More user-friendly class for variable length record
   then the underlying binary class."))
 
@@ -221,10 +222,14 @@
 	 (case record-id
 	   (2111 :not-yet-ogc-math-transform-wkt)
 	   (2112 :not-yet-ogc-coord-system-wkt)
-	   (34735 (let ((directory (read-value 'geokey-directory fd)))
+	   (34735 (let* ((directory (read-value 'geokey-directory fd))
+			 (nkeys (number-of-keys directory)))
 		    (make-instance 'projection-vlr
 				   :user-id user-id
 				   :record-id record-id
+				   :disk-size (+ (object-size 'variable-length-record-header)
+						 (object-size directory)
+						 (* nkeys (object-size 'geokey-key)))
 				   :directory directory
 				   :keys (loop for i below (number-of-keys directory)
 					       collect (read-value 'geokey-key fd)))))
@@ -232,6 +237,8 @@
 	((string= user-id "LASF_Spec")
 	 (cond ((and (> record-id 99) (< record-id 355))
 		(make-instance 'wpd-vlr :user-id user-id :record-id record-id
+					:disk-size (+ (object-size 'variable-length-record-header)
+						      (object-size 'waveform-packet-descriptor))
 					:content (read-value 'waveform-packet-descriptor fd)))))))
 
 ;; XXX to be called right after a read-public-header
@@ -262,27 +269,27 @@
 
 (defun write-vlr (stream vlr)
   (with-accessors ((record-id vlr-record-id)
-		   (user-id vlr-user-id)) vlr
-    (cond ((string= user-id "LASF_Projection")
-	   (with-accessors ((directory projection-vlr-directory)
-			    (keys projection-vlr-keys)) vlr
-	     (let ((sz (+ (object-size 'geokey-directory)
-			  (* (object-size 'geokey-key) (length keys)))))
+		   (user-id vlr-user-id)
+		   (disk-size vlr-disk-size)) vlr
+    (let ((sz-after-header (- disk-size (object-size 'variable-length-record-header))))
+      (cond ((string= user-id "LASF_Projection")
+	     (with-accessors ((directory projection-vlr-directory)
+			      (keys projection-vlr-keys)) vlr
 	       (write-value 'variable-length-record-header stream
 			    (make-instance 'variable-length-record-header
-					   :record-id record-id :user-id user-id :record-length-after-header sz))
+					   :record-id record-id :user-id user-id
+					   :record-length-after-header sz-after-header))
 	       (write-value 'geokey-directory stream directory)
 	       (dolist (key keys)
-		 (write-value 'geokey-key stream key)))))
-	  ((string= user-id "LASF_Spec")
-	   (cond ((and (> record-id 99) (< record-id 355))
-		  (with-accessors ((content wpd-vlr-content)) vlr
-		    (let ((sz (object-size content)))
+		 (write-value 'geokey-key stream key))))
+	    ((string= user-id "LASF_Spec")
+	     (cond ((and (> record-id 99) (< record-id 355))
+		    (with-accessors ((content wpd-vlr-content)) vlr
 		      (write-value 'variable-length-record-header stream
 				   (make-instance 'variable-length-record-header
 						  :record-id record-id
 						  :user-id user-id
-						  :record-length-after-header sz))
+						  :record-length-after-header sz-after-header))
 		      (write-value 'waveform-packet-descriptor stream content)))))))))
 
 (defun write-evlr (stream evlr)
@@ -714,6 +721,9 @@ should be correct."
 	    finally (return (make-instance 'waveform :xs xs :ys ys :zs zs :times times
 						     :intensities intensities))))))
 
+(defgeneric projection (las)
+  (:documentation "Get/set EPSG projection of a LAS."))
+
 (defmethod projection ((las las))
   (let ((vlr-projection (find "LASF_Projection" (las-variable-length-records las)
 			      :key #'vlr-user-id :test #'string=)))
@@ -727,10 +737,15 @@ should be correct."
       (multiple-value-bind (directory keys) (make-projection-geokey epsg-code)
 	(setf vlrs (cons
 		    (make-instance 'projection-vlr :record-id 34735 :user-id user-id
+						   :disk-size (+ (object-size 'variable-length-record-header)
+								 (object-size directory)
+								 (* (length keys) (object-size 'geokey-key)))
 						   :directory directory :keys keys)
 		    (remove user-id vlrs :key #'vlr-user-id :test #'string=))
-	      ;; Update number of variable length record
-	      (number-of-variable-length-records header) (length vlrs))))))
+	      ;; Update number of variable length record and offset to data point
+	      (number-of-variable-length-records header) (length vlrs)
+	      (offset-to-point-data header) (+ (header-size (las-public-header las))
+					       (reduce #'+ vlrs :key #'vlr-disk-size)))))))
 
 (defun open-las-file (filename &key (direction :input) if-exists if-does-not-exist)
   (let ((stream (open filename
@@ -809,6 +824,7 @@ should be correct."
 									       :scan-angle 0
 									       :user-data 0
 									       :point-source-id 0)
-					  (+ j (* ny i)) las)
-			  (when (and (< i 30) (< j 30)) (format t "~@{~a~^ ~}~%" i j x y z))))))
+					  (+ j (* ny i)) las)))))
+    ;; Bounding box has been updated during point writing so output
+    ;; headers last.
     (write-headers las)))
