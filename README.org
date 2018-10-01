@@ -5,12 +5,12 @@ standard LAS files as defined here:
 
 http://www.asprs.org/Committee-General/LASer-LAS-File-Format-Exchange-Activities.html
 
-For simple usage the UI is straightforward . You open a LAS file with
+For simple usage, the UI is straightforward. You open a LAS file with
 the =with-las= macro and then you can access its points with the
 =read-point-at= function. A point is an object and you have accessors
 to get its slots' values.
 #+BEGIN_SRC lisp
 (las:with-las (las "~/tmp/foo.las")
   (loop for i below (las:las-number-of-points las)
-	collect (las:read-point-at i las :scale-p t)))
+	collect (las:x (las:read-point-at i las :scale-p t))))
 #+END_SRC
