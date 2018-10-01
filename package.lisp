@@ -34,4 +34,6 @@
    #:z-t
    #:return-number
    #:las-number-of-points
+   #:las-number-of-points-by-return
+   #:las-point-class
    #:las-to-txt))

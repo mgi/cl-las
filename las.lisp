@@ -768,8 +768,8 @@ should be correct."
               (setq ,abortp nil))
          (when (las-stream ,las) (close (las-stream ,las) :abort ,abortp))))))
 
-(defmethod las-number-of-points ((object las))
-  (number-of-points (las-public-header object)))
+(make-get/set las-number-of-points number-of-points)
+(make-get/set las-number-of-points-by-return number-of-points-by-return)
 
 ;;; Examples
 (defun las-to-txt (lasfile outfile &optional n)
@@ -809,18 +809,17 @@ should be correct."
 
 (defun write-test (lasfile &optional (nx 500) (ny 500))
   (with-las (las lasfile :direction :output :if-exists :supersede :if-does-not-exist :create)
-    (let ((header (las-public-header las)))
-      (setf (number-of-points header) (* nx ny)
-	    (number-of-points-by-return header) (vector (* nx ny) 0 0 0 0 0 0 0 0 0 0 0 0 0 0)
-	    ;; Lambert 93… because la France!
-	    (projection las) 2154)
-      (loop with epsilon-pi = (/ pi 100)
-	    for x below nx
-	    do (loop for y below ny
-		     do (let ((z (round (* 10 (sin (* x epsilon-pi))
-					   (sin (* y epsilon-pi))))))
-			  (write-point-at (make-instance (las-point-class las) :x x :y y :z z)
-					  (+ y (* ny x)) las)))))
+    (setf (las-number-of-points las) (* nx ny)
+	  (las-number-of-points-by-return las) (vector (* nx ny) 0 0 0 0 0 0 0 0 0 0 0 0 0 0)
+	  ;; Lambert 93… because la France!
+	  (projection las) 2154)
+    (loop with epsilon-pi = (/ pi 100)
+	  for x below nx
+	  do (loop for y below ny
+		   do (let ((z (round (* 10 (sin (* x epsilon-pi))
+					 (sin (* y epsilon-pi))))))
+			(write-point-at (make-instance (las-point-class las) :x x :y y :z z)
+					(+ y (* ny x)) las))))
     ;; Bounding box has been updated during point writing so output
     ;; headers last.
     (write-headers las)))
