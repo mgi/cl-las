@@ -645,7 +645,7 @@ should be correct."
   (write-point point las :unscale-p unscale-p))
 
 (defmacro make-get/set (fun-name low-level-name)
-  (let ((las (gensym))
+  (let ((las (gensym "LAS"))
 	(value (gensym)))
     `(progn
        (defun ,fun-name (,las)
