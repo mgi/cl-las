@@ -12,5 +12,5 @@ to get its slots' values.
 #+BEGIN_SRC lisp
 (las:with-las (las "~/tmp/foo.las")
   (loop for i below (las:las-number-of-points las)
-	collect (las:x (las:read-point-at i las :scale-p t))))
+        collect (las:x (las:read-point-at i las :scale-p t))))
 #+END_SRC

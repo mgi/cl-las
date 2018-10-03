@@ -170,21 +170,21 @@
 (defun get-projection-code (keys)
   (let ((model (find +gt-model-type-key+ keys :key #'key-id)))
     (when (and model
-	       (zerop (tiff-tag-location model)))
+               (zerop (tiff-tag-location model)))
       (ecase (value-offset model)
-	((1 2) (get-cs-type keys))
-	(3 ;; TODO geocentric
-	 )))))
+        ((1 2) (get-cs-type keys))
+        (3 ;; TODO geocentric
+         )))))
 
 (defun get-cs-type (keys)
   (let ((type (find +projected-cs-type-key+ keys :key #'key-id)))
     (when (and type
-	       (zerop (tiff-tag-location type)))
+               (zerop (tiff-tag-location type)))
       (value-offset type))))
 
 (defun make-projection-geokey (code)
   (let ((keys (list (make-instance 'geokey-key :key-id +gt-model-type-key+ :char-count 1 :tiff-tag-location 0 :value-offset 1)
-		    (make-instance 'geokey-key :key-id +gt-raster-type-key+ :char-count 1 :tiff-tag-location 0 :value-offset 2)
-		    (make-instance 'geokey-key :key-id +projected-cs-type-key+ :char-count 1 :tiff-tag-location 0 :value-offset code))))
+                    (make-instance 'geokey-key :key-id +gt-raster-type-key+ :char-count 1 :tiff-tag-location 0 :value-offset 2)
+                    (make-instance 'geokey-key :key-id +projected-cs-type-key+ :char-count 1 :tiff-tag-location 0 :value-offset code))))
     (values (make-instance 'geokey-directory :number-of-keys (length keys))
-	    keys)))
+            keys)))

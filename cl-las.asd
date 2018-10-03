@@ -8,5 +8,5 @@
   :serial t
   :depends-on (:binary-io)
   :components ((:file "package")
-	       (:file "geotiff")
+               (:file "geotiff")
                (:file "las")))

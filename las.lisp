@@ -24,14 +24,14 @@
 
 (defun current-doy-year ()
   (labels ((leap-year-p (year)
-	     (destructuring-bind (fh h f)
-		 (mapcar #'(lambda (n) (zerop (mod year n))) '(400 100 4))
-	       (or fh (and (not h) f)))))
+             (destructuring-bind (fh h f)
+                 (mapcar #'(lambda (n) (zerop (mod year n))) '(400 100 4))
+               (or fh (and (not h) f)))))
     (multiple-value-bind (second minute hour date month year day-of-week dst-p tz) (get-decoded-time)
       (declare (ignore second minute hour day-of-week dst-p tz))
       (let ((month-len (list 31 (if (leap-year-p year) 29 28) 31 30 31 30 31 31 30 31 30 31)))
-	(values (reduce #'+ (cons date (subseq month-len 0 (1- month))))
-		year)))))
+        (values (reduce #'+ (cons date (subseq month-len 0 (1- month))))
+                year)))))
 
 (multiple-value-bind (doy year) (current-doy-year)
   (let ((point-data-id 0))
@@ -100,7 +100,7 @@
 (defmethod (setf number-of-points) (value (header public-header))
   ;; set both. old and new.
   (setf (%number-of-points header) value
-	(%legacy-number-of-points header) value))
+        (%legacy-number-of-points header) value))
 
 (defgeneric number-of-points-by-return (header)
   (:documentation "Unified number of points by return between legacy
@@ -122,7 +122,7 @@
 (defmethod (setf number-of-points-by-return) (value (header public-header))
   ;; set both.
   (setf (%number-of-points-by-return header) value
-	(%legacy-number-of-points-by-return header) (subseq value 0 5)))
+        (%legacy-number-of-points-by-return header) (subseq value 0 5)))
 
 (defgeneric start-of-evlrs (header)
   (:documentation "Unified start of EVLRs between new and before
@@ -184,24 +184,24 @@
   (file-position fd 0)
   (let ((h (read-value 'public-header fd)))
     (cond ((and (= (version-major h) 1)
-		(= (version-minor h) 3))
-	   (file-position fd 0)
-	   (read-value 'public-header-1.3 fd))
-	  ((and (= (version-major h) 1)
-		(< (version-minor h) 3))
-	   (file-position fd 0)
-	   (read-value 'public-header-legacy fd))
-	  (t h))))
+                (= (version-minor h) 3))
+           (file-position fd 0)
+           (read-value 'public-header-1.3 fd))
+          ((and (= (version-major h) 1)
+                (< (version-minor h) 3))
+           (file-position fd 0)
+           (read-value 'public-header-legacy fd))
+          (t h))))
 
 (defun write-public-header (fd h)
   (file-position fd 0)
   (cond ((and (= (version-major h) 1)
-	      (= (version-minor h) 3))
-	 (write-value 'public-header-1.3 fd h))
-	((and (= (version-major h) 1)
-	      (< (version-minor h) 3))
-	 (write-value 'public-header-legacy fd h))
-	(t (write-value 'public-header fd h))))
+              (= (version-minor h) 3))
+         (write-value 'public-header-1.3 fd h))
+        ((and (= (version-major h) 1)
+              (< (version-minor h) 3))
+         (write-value 'public-header-legacy fd h))
+        (t (write-value 'public-header fd h))))
 
 (defclass vlr-mixin ()
   ((user-id :initarg :user-id :accessor vlr-user-id)
@@ -221,78 +221,78 @@
 
 (defun read-vlr-content (fd user-id record-id)
   (cond ((string= user-id "LASF_Projection")
-	 (case record-id
-	   (2111 :not-yet-ogc-math-transform-wkt)
-	   (2112 :not-yet-ogc-coord-system-wkt)
-	   (34735 (let* ((directory (read-value 'geokey-directory fd))
-			 (nkeys (number-of-keys directory)))
-		    (make-instance 'projection-vlr
-				   :user-id user-id
-				   :record-id record-id
-				   :disk-size (+ (object-size 'variable-length-record-header)
-						 (object-size directory)
-						 (* nkeys (object-size 'geokey-key)))
-				   :directory directory
-				   :keys (loop for i below (number-of-keys directory)
-					       collect (read-value 'geokey-key fd)))))
-	   (34736 (read-value 'geo-double-params-tag fd))))
-	((string= user-id "LASF_Spec")
-	 (cond ((and (> record-id 99) (< record-id 355))
-		(make-instance 'wpd-vlr :user-id user-id :record-id record-id
-					:disk-size (+ (object-size 'variable-length-record-header)
-						      (object-size 'waveform-packet-descriptor))
-					:content (read-value 'waveform-packet-descriptor fd)))))))
+         (case record-id
+           (2111 :not-yet-ogc-math-transform-wkt)
+           (2112 :not-yet-ogc-coord-system-wkt)
+           (34735 (let* ((directory (read-value 'geokey-directory fd))
+                         (nkeys (number-of-keys directory)))
+                    (make-instance 'projection-vlr
+                                   :user-id user-id
+                                   :record-id record-id
+                                   :disk-size (+ (object-size 'variable-length-record-header)
+                                                 (object-size directory)
+                                                 (* nkeys (object-size 'geokey-key)))
+                                   :directory directory
+                                   :keys (loop for i below (number-of-keys directory)
+                                               collect (read-value 'geokey-key fd)))))
+           (34736 (read-value 'geo-double-params-tag fd))))
+        ((string= user-id "LASF_Spec")
+         (cond ((and (> record-id 99) (< record-id 355))
+                (make-instance 'wpd-vlr :user-id user-id :record-id record-id
+                                        :disk-size (+ (object-size 'variable-length-record-header)
+                                                      (object-size 'waveform-packet-descriptor))
+                                        :content (read-value 'waveform-packet-descriptor fd)))))))
 
 ;; XXX to be called right after a read-public-header
 (defun read-vlrs (header fd)
   (let (res)
     (dotimes (i (number-of-variable-length-records header) (reverse res))
       (let* ((vlr (read-value 'variable-length-record-header fd))
-	     (next-pos (+ (file-position fd) (record-length-after-header vlr)))
-	     (content (read-vlr-content fd (user-id vlr) (record-id vlr))))
-	(push content res)
-	(file-position fd next-pos)))))
+             (next-pos (+ (file-position fd) (record-length-after-header vlr)))
+             (content (read-vlr-content fd (user-id vlr) (record-id vlr))))
+        (push content res)
+        (file-position fd next-pos)))))
 
 (defun read-evlrs (header fd)
   (let ((n (number-of-evlrs header))
-	res)
+        res)
     (unless (zerop n) (file-position fd (start-of-evlrs header)))
     (dotimes (i n (reverse res))
       (let* ((evlr (read-value 'extended-variable-length-record-header fd))
-	     (next-pos (+ (file-position fd) (record-length-after-header evlr))))
-	(push evlr res)
-	(file-position fd next-pos)))))
+             (next-pos (+ (file-position fd) (record-length-after-header evlr))))
+        (push evlr res)
+        (file-position fd next-pos)))))
 
 (defun read-headers (fd)
   (let* ((header (read-public-header fd))
          (vlrecords (read-vlrs header fd))
-	 (evlrecords (read-evlrs header fd)))
+         (evlrecords (read-evlrs header fd)))
     (values header vlrecords evlrecords)))
 
 (defun write-vlr (stream vlr)
   (with-accessors ((record-id vlr-record-id)
-		   (user-id vlr-user-id)
-		   (disk-size vlr-disk-size)) vlr
+                   (user-id vlr-user-id)
+                   (disk-size vlr-disk-size)) vlr
     (let ((sz-after-header (- disk-size (object-size 'variable-length-record-header))))
       (cond ((string= user-id "LASF_Projection")
-	     (with-accessors ((directory projection-vlr-directory)
-			      (keys projection-vlr-keys)) vlr
-	       (write-value 'variable-length-record-header stream
-			    (make-instance 'variable-length-record-header
-					   :record-id record-id :user-id user-id
-					   :record-length-after-header sz-after-header))
-	       (write-value 'geokey-directory stream directory)
-	       (dolist (key keys)
-		 (write-value 'geokey-key stream key))))
-	    ((string= user-id "LASF_Spec")
-	     (cond ((and (> record-id 99) (< record-id 355))
-		    (with-accessors ((content wpd-vlr-content)) vlr
-		      (write-value 'variable-length-record-header stream
-				   (make-instance 'variable-length-record-header
-						  :record-id record-id
-						  :user-id user-id
-						  :record-length-after-header sz-after-header))
-		      (write-value 'waveform-packet-descriptor stream content)))))))))
+             (with-accessors ((directory projection-vlr-directory)
+                              (keys projection-vlr-keys)) vlr
+               (write-value 'variable-length-record-header stream
+                            (make-instance 'variable-length-record-header
+                                           :record-id record-id :user-id user-id
+                                           :record-length-after-header sz-after-header))
+               (write-value 'geokey-directory stream directory)
+               (dolist (key keys)
+                 (write-value 'geokey-key stream key))))
+            ((string= user-id "LASF_Spec")
+             (cond ((and (> record-id 99) (< record-id 355))
+                    (with-accessors ((content wpd-vlr-content)) vlr
+                      (write-value 'variable-length-record-header stream
+                                   (make-instance 'variable-length-record-header
+                                                  :record-id record-id
+                                                  :user-id user-id
+                                                  :record-length-after-header sz-after-header))
+                      (write-value 'waveform-packet-descriptor stream content)))))))))
 
 (defun write-evlr (stream evlr)
   (write-value 'extended-variable-length-record-header stream evlr)
@@ -300,9 +300,9 @@
 
 (defun write-headers (las)
   (with-accessors ((stream las-stream)
-		   (pheader las-public-header)
-		   (vlrs las-variable-length-records)
-		   (evlrs las-extended-variable-length-records)) las
+                   (pheader las-public-header)
+                   (vlrs las-variable-length-records)
+                   (evlrs las-extended-variable-length-records)) las
     (write-public-header stream pheader)
     (dolist (vlr vlrs)
       (write-vlr stream vlr))
@@ -398,8 +398,8 @@
 (defmethod human-readable-classification ((p point-data))
   (let ((value (classification p)))
     (if (< value (length *asprs-classification*))
-	(nth value *asprs-classification*)
-	:reserved)))
+        (nth value *asprs-classification*)
+        :reserved)))
 
 (defmethod (setf human-readable-classification) (value (p point-data))
   (let ((pos (position value *asprs-classification*)))
@@ -459,8 +459,8 @@
 (defmethod (setf scan-direction) (value (p new-point-data))
   (with-slots (gloubiboulga) p
     (setf (ldb (byte 1 14) gloubiboulga) (ecase value
-					   (positive-scan 1)
-					   (negative-scan 0)))))
+                                           (positive-scan 1)
+                                           (negative-scan 0)))))
 
 (defmethod edge-of-flight-line-p ((p new-point-data))
   (with-slots (gloubiboulga) p
@@ -494,9 +494,9 @@
 (defmethod classification ((p new-point-data))
   (with-slots (classification) p
     (cond ((< classification (length *new-asprs-classification*))
-	   (nth classification *new-asprs-classification*))
-	  ((< classification 64) :reserved)
-	  (t :user-definable))))
+           (nth classification *new-asprs-classification*))
+          ((< classification 64) :reserved)
+          (t :user-definable))))
 
 (defmethod (setf classification) (value (p new-point-data))
   (with-slots (classification) p
@@ -539,7 +539,7 @@
   ((%pathname :initarg :pathname :reader las-pathname)
    (%stream :initarg :stream :reader las-stream)
    (%wpd-stream :initarg :wpd-stream :initform nil :accessor las-wpd-stream
-		:documentation "Stream to an external Wave Packet Descriptor.")
+                :documentation "Stream to an external Wave Packet Descriptor.")
    (%header :accessor las-public-header)
    (%point-class :accessor las-point-class)
    (%vlrecords :initform nil :accessor las-variable-length-records)
@@ -549,7 +549,7 @@
   (let ((las (make-instance 'las :pathname pathname :stream stream)))
     (when (slot-boundp las '%header)
       (assert (=  (point-data-record-length (las-public-header las)) (object-size (las-point-class las)))
-	      () "Point data contains user-specific extra bytes."))
+              () "Point data contains user-specific extra bytes."))
     las))
 
 (defmethod initialize-instance :after ((object las) &key)
@@ -558,31 +558,31 @@ or just instantiate slots in case of an output stream."
   (let ((stream (las-stream object)))
     (when (streamp stream)
       (with-accessors ((pathname las-pathname)
-		       (wpd-stream las-wpd-stream)
-		       (public-header las-public-header)
+                       (wpd-stream las-wpd-stream)
+                       (public-header las-public-header)
                        (vlrecords las-variable-length-records)
                        (point-class las-point-class)
-		       (evlrecords las-extended-variable-length-records)) object
-	(cond ((input-stream-p stream)
+                       (evlrecords las-extended-variable-length-records)) object
+        (cond ((input-stream-p stream)
                (multiple-value-bind (pheader vlrs evlrs) (read-headers stream)
-		 ;; open external WDP if needed
-		 (when (member 'external-wave-data (global-encoding pheader))
-		   (let ((wpd-name (merge-pathnames (make-pathname :type "wdp") pathname)))
-		     (if (probe-file wpd-name)
-			 (setf wpd-stream (open wpd-name :element-type '(unsigned-byte 8)))
-			 (error "Can't find ~a waveform file" wpd-name))))
-		 ;; go to data point in stream
-		 (file-position stream (offset-to-point-data pheader))
-		 ;; fill missing slots
-		 (setf public-header pheader
+                 ;; open external WDP if needed
+                 (when (member 'external-wave-data (global-encoding pheader))
+                   (let ((wpd-name (merge-pathnames (make-pathname :type "wdp") pathname)))
+                     (if (probe-file wpd-name)
+                         (setf wpd-stream (open wpd-name :element-type '(unsigned-byte 8)))
+                         (error "Can't find ~a waveform file" wpd-name))))
+                 ;; go to data point in stream
+                 (file-position stream (offset-to-point-data pheader))
+                 ;; fill missing slots
+                 (setf public-header pheader
                        vlrecords vlrs
                        point-class (nth (point-data-format-id pheader) *point-data-classes*)
-		       evlrecords evlrs)))
-	      ((output-stream-p stream)
-	       (let ((pheader (make-instance 'public-header)))
-		 (setf (header-size pheader) (object-size pheader)
-		       public-header pheader
-		       point-class (nth (point-data-format-id pheader) *point-data-classes*)))))))))
+                       evlrecords evlrs)))
+              ((output-stream-p stream)
+               (let ((pheader (make-instance 'public-header)))
+                 (setf (header-size pheader) (object-size pheader)
+                       public-header pheader
+                       point-class (nth (point-data-format-id pheader) *point-data-classes*)))))))))
 
 (defun read-point (las &key scale-p)
   "Read a point in the given LAS. XXX position into the LAS stream
@@ -601,20 +601,20 @@ should be correct."
 (defun read-point-at (index las &key scale-p)
   "Read a point at a given index."
   (file-position (las-stream las) (+ (offset-to-point-data (las-public-header las))
-				     (* index (object-size (las-point-class las)))))
+                                     (* index (object-size (las-point-class las)))))
   (read-point las :scale-p scale-p))
 
 (defun update-bounding-box (header x y z)
   (macrolet ((update-slot (header slot)
-	       (let ((min (find-symbol (format nil "%MIN-~a" slot)))
-		     (max (find-symbol (format nil "%MAX-~a" slot))))
-		 `(progn
-		    (when (or (not (slot-boundp ,header ',min))
-			      (< ,slot (,min ,header)))
-		      (setf (,min ,header) ,slot))
-		    (when (or (not (slot-boundp ,header ',max))
-			      (> ,slot (,max ,header)))
-		      (setf (,max ,header) ,slot))))))
+               (let ((min (find-symbol (format nil "%MIN-~a" slot)))
+                     (max (find-symbol (format nil "%MAX-~a" slot))))
+                 `(progn
+                    (when (or (not (slot-boundp ,header ',min))
+                              (< ,slot (,min ,header)))
+                      (setf (,min ,header) ,slot))
+                    (when (or (not (slot-boundp ,header ',max))
+                              (> ,slot (,max ,header)))
+                      (setf (,max ,header) ,slot))))))
     (update-slot header x)
     (update-slot header y)
     (update-slot header z)))
@@ -631,27 +631,27 @@ should be correct."
     (update-bounding-box (las-public-header las) x y z)
     (when unscale-p
       (with-accessors ((x-scale x-scale) (x-offset x-offset)
-		       (y-scale y-scale) (y-offset y-offset)
-		       (z-scale z-scale) (z-offset z-offset)) (las-public-header las)
+                       (y-scale y-scale) (y-offset y-offset)
+                       (z-scale z-scale) (z-offset z-offset)) (las-public-header las)
         (setf x (/ (- x x-offset) x-scale)
-	      y (/ (- y y-offset) y-scale)
-	      z (/ (- z z-offset) z-scale)))))
+              y (/ (- y y-offset) y-scale)
+              z (/ (- z z-offset) z-scale)))))
   (write-value (las-point-class las) (las-stream las) point))
 
 (defun write-point-at (point index las &key unscale-p)
   "Write a point at a given index"
   (file-position (las-stream las) (+ (offset-to-point-data (las-public-header las))
-				     (* index (object-size (las-point-class las)))))
+                                     (* index (object-size (las-point-class las)))))
   (write-point point las :unscale-p unscale-p))
 
 (defmacro make-get/set (fun-name low-level-name)
   (let ((las (gensym "LAS"))
-	(value (gensym)))
+        (value (gensym)))
     `(progn
        (defun ,fun-name (,las)
-	 (,low-level-name (las-public-header ,las)))
+         (,low-level-name (las-public-header ,las)))
        (defun (setf ,fun-name) (,value ,las)
-	 (setf (,low-level-name (las-public-header ,las)) ,value)))))
+         (setf (,low-level-name (las-public-header ,las)) ,value)))))
 
 (make-get/set max-x %max-x)
 (make-get/set min-x %min-x)
@@ -676,12 +676,12 @@ should be correct."
 
 (defun %get-wave-packet-descriptor-of-point (point las)
   (let ((record-id (+ 99 (wave-packet-descriptor-index point)))
-	(vlrs (las-variable-length-records las)))
+        (vlrs (las-variable-length-records las)))
     (labels ((wpd-key (elt)
-	       (and (typep elt 'wpd-vlr)
-		    (vlr-record-id elt))))
+               (and (typep elt 'wpd-vlr)
+                    (vlr-record-id elt))))
       (unless (= record-id 99)
-	(wpd-vlr-content (find record-id vlrs :key #'wpd-key))))))
+        (wpd-vlr-content (find record-id vlrs :key #'wpd-key))))))
 
 (defgeneric waveform-temporal-spacing-of-point (point las)
   (:documentation "Waveform temporal spacing in picoseconds (ps).")
@@ -698,73 +698,73 @@ should be correct."
 
 (defmethod waveform-of-point ((point waveform-mixin) las)
   (let* ((header (las-public-header las))
-	 (stream (if (las-wpd-stream las) (las-wpd-stream las) (las-stream las)))
-	 (evlr-pos (if (las-wpd-stream las) 0 (start-of-evlrs header)))
-	 (wpd (%get-wave-packet-descriptor-of-point point las)))
+         (stream (if (las-wpd-stream las) (las-wpd-stream las) (las-stream las)))
+         (evlr-pos (if (las-wpd-stream las) 0 (start-of-evlrs header)))
+         (wpd (%get-wave-packet-descriptor-of-point point las)))
     (when wpd
       (assert (= (* (number-of-samples wpd) (truncate (bits-per-sample wpd) 8))
-		 (waveform-packet-size point)))
+                 (waveform-packet-size point)))
       (file-position stream (+ evlr-pos (byte-offset-to-waveform point)))
       (loop with n = (number-of-samples wpd)
-	    with dt = (temporal-sample-spacing wpd)
-	    with bps = (bits-per-sample wpd)
-	    with xs = (make-array n :element-type 'double-float)
-	    with ys = (make-array n :element-type 'double-float)
-	    with zs = (make-array n :element-type 'double-float)
-	    with times = (make-array n)
-	    with intensities = (make-array n :element-type `(unsigned-byte ,bps))
-	    for i below n
-	    for j downfrom (1- n)
-	    do (let ((time (float (- (return-point-waveform-location point) (* i dt)) 1.d0)))
-		 (setf (aref xs j) (+ (x point) (* (x-t point) time))
-		       (aref ys j) (+ (y point) (* (y-t point) time))
-		       (aref zs j) (+ (z point) (* (z-t point) time))
-		       (aref times j) (* j dt)
-		       (aref intensities j) (read-value (type-from-bits bps) stream)))
-	    finally (return (make-instance 'waveform :xs xs :ys ys :zs zs :times times
-						     :intensities intensities))))))
+            with dt = (temporal-sample-spacing wpd)
+            with bps = (bits-per-sample wpd)
+            with xs = (make-array n :element-type 'double-float)
+            with ys = (make-array n :element-type 'double-float)
+            with zs = (make-array n :element-type 'double-float)
+            with times = (make-array n)
+            with intensities = (make-array n :element-type `(unsigned-byte ,bps))
+            for i below n
+            for j downfrom (1- n)
+            do (let ((time (float (- (return-point-waveform-location point) (* i dt)) 1.d0)))
+                 (setf (aref xs j) (+ (x point) (* (x-t point) time))
+                       (aref ys j) (+ (y point) (* (y-t point) time))
+                       (aref zs j) (+ (z point) (* (z-t point) time))
+                       (aref times j) (* j dt)
+                       (aref intensities j) (read-value (type-from-bits bps) stream)))
+            finally (return (make-instance 'waveform :xs xs :ys ys :zs zs :times times
+                                                     :intensities intensities))))))
 
 (defgeneric projection (las)
   (:documentation "Get/set EPSG projection of a LAS."))
 
 (defmethod projection ((las las))
   (let ((vlr-projection (find "LASF_Projection" (las-variable-length-records las)
-			      :key #'vlr-user-id :test #'string=)))
+                              :key #'vlr-user-id :test #'string=)))
     (when vlr-projection
       (get-projection-code (projection-vlr-keys vlr-projection)))))
 
 (defmethod (setf projection) (epsg-code (las las))
   (with-accessors ((header las-public-header)
-		   (vlrs las-variable-length-records)) las
+                   (vlrs las-variable-length-records)) las
     (let ((user-id "LASF_Projection"))
       (multiple-value-bind (directory keys) (make-projection-geokey epsg-code)
-	(setf vlrs (cons
-		    (make-instance 'projection-vlr :record-id 34735 :user-id user-id
-						   :disk-size (+ (object-size 'variable-length-record-header)
-								 (object-size directory)
-								 (* (length keys) (object-size 'geokey-key)))
-						   :directory directory :keys keys)
-		    (remove user-id vlrs :key #'vlr-user-id :test #'string=))
-	      ;; Update number of variable length record and offset to data point
-	      (number-of-variable-length-records header) (length vlrs)
-	      (offset-to-point-data header) (+ (header-size (las-public-header las))
-					       (reduce #'+ vlrs :key #'vlr-disk-size)))))))
+        (setf vlrs (cons
+                    (make-instance 'projection-vlr :record-id 34735 :user-id user-id
+                                                   :disk-size (+ (object-size 'variable-length-record-header)
+                                                                 (object-size directory)
+                                                                 (* (length keys) (object-size 'geokey-key)))
+                                                   :directory directory :keys keys)
+                    (remove user-id vlrs :key #'vlr-user-id :test #'string=))
+              ;; Update number of variable length record and offset to data point
+              (number-of-variable-length-records header) (length vlrs)
+              (offset-to-point-data header) (+ (header-size (las-public-header las))
+                                               (reduce #'+ vlrs :key #'vlr-disk-size)))))))
 
 (defun open-las-file (filename &key (direction :input) if-exists if-does-not-exist)
   (let ((stream (open filename
-		      :element-type '(unsigned-byte 8)
-		      :direction direction :if-exists if-exists :if-does-not-exist if-does-not-exist)))
+                      :element-type '(unsigned-byte 8)
+                      :direction direction :if-exists if-exists :if-does-not-exist if-does-not-exist)))
     (make-las filename stream)))
 
 (defmacro with-las ((las filename &rest options) &body body)
   (let ((abortp (gensym)))
     `(let ((,las (open-las-file ,filename ,@options))
-	   (,abortp t))
+           (,abortp t))
        (unwind-protect
             (multiple-value-prog1
               (unwind-protect
-		   (progn,@body)
-		(when (las-wpd-stream ,las) (close (las-wpd-stream ,las))))
+                   (progn,@body)
+                (when (las-wpd-stream ,las) (close (las-wpd-stream ,las))))
               (setq ,abortp nil))
          (when (las-stream ,las) (close (las-stream ,las) :abort ,abortp))))))
 
@@ -790,36 +790,36 @@ should be correct."
 
 (defun wave-to-txt (lasfile outfile &optional (index 0) n)
   (with-open-file (out outfile :direction :output
-			       :if-exists :supersede
-			       :if-does-not-exist :create)
+                               :if-exists :supersede
+                               :if-does-not-exist :create)
     (with-las (in lasfile)
       (dotimes (i (or n (las-number-of-points in)))
-	(let* ((point (read-point-at (+ index i) in))
-	       (wave (waveform-of-point point in)))
-	  (with-accessors ((xs waveform-xs)
-			   (ys waveform-ys)
-			   (zs waveform-zs)
-			   (intensities waveform-intensities)) wave
-	    (loop for x across xs
-		  for y across ys
-		  for z across zs
-		  for intensity across intensities
-		  do (format out "~&~f ~f ~f ~d~%" x y z intensity)))
-	  (terpri out))))))
+        (let* ((point (read-point-at (+ index i) in))
+               (wave (waveform-of-point point in)))
+          (with-accessors ((xs waveform-xs)
+                           (ys waveform-ys)
+                           (zs waveform-zs)
+                           (intensities waveform-intensities)) wave
+            (loop for x across xs
+                  for y across ys
+                  for z across zs
+                  for intensity across intensities
+                  do (format out "~&~f ~f ~f ~d~%" x y z intensity)))
+          (terpri out))))))
 
 (defun write-test (lasfile &optional (nx 500) (ny 500))
   (with-las (las lasfile :direction :output :if-exists :supersede :if-does-not-exist :create)
     (setf (las-number-of-points las) (* nx ny)
-	  (las-number-of-points-by-return las) (vector (* nx ny) 0 0 0 0 0 0 0 0 0 0 0 0 0 0)
-	  ;; Lambert 93… because la France!
-	  (projection las) 2154)
+          (las-number-of-points-by-return las) (vector (* nx ny) 0 0 0 0 0 0 0 0 0 0 0 0 0 0)
+          ;; Lambert 93… because la France!
+          (projection las) 2154)
     (loop with epsilon-pi = (/ pi 100)
-	  for x below nx
-	  do (loop for y below ny
-		   do (let ((z (round (* 10 (sin (* x epsilon-pi))
-					 (sin (* y epsilon-pi))))))
-			(write-point-at (make-instance (las-point-class las) :x x :y y :z z)
-					(+ y (* ny x)) las))))
+          for x below nx
+          do (loop for y below ny
+                   do (let ((z (round (* 10 (sin (* x epsilon-pi))
+                                         (sin (* y epsilon-pi))))))
+                        (write-point-at (make-instance (las-point-class las) :x x :y y :z z)
+                                        (+ y (* ny x)) las))))
     ;; Bounding box has been updated during point writing so output
     ;; headers last.
     (write-headers las)))
