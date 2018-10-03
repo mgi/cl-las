@@ -633,9 +633,9 @@ should be correct."
       (with-accessors ((x-scale x-scale) (x-offset x-offset)
                        (y-scale y-scale) (y-offset y-offset)
                        (z-scale z-scale) (z-offset z-offset)) (las-public-header las)
-        (setf x (/ (- x x-offset) x-scale)
-              y (/ (- y y-offset) y-scale)
-              z (/ (- z z-offset) z-scale)))))
+        (setf x (round (/ (- x x-offset) x-scale))
+              y (round (/ (- y y-offset) y-scale))
+              z (round (/ (- z z-offset) z-scale))))))
   (write-value (las-point-class las) (las-stream las) point))
 
 (defun write-point-at (point index las &key unscale-p)
