@@ -770,6 +770,12 @@ should be correct."
 
 (make-get/set las-number-of-points number-of-points)
 (make-get/set las-number-of-points-by-return number-of-points-by-return)
+(make-get/set las-x-scale x-scale)
+(make-get/set las-y-scale y-scale)
+(make-get/set las-z-scale z-scale)
+(make-get/set las-x-offset x-offset)
+(make-get/set las-y-offset y-offset)
+(make-get/set las-z-offset z-scale)
 
 ;;; Examples
 (defun las-to-txt (lasfile outfile &optional n)

@@ -35,5 +35,11 @@
    #:return-number
    #:las-number-of-points
    #:las-number-of-points-by-return
+   #:las-x-scale
+   #:las-y-scale
+   #:las-z-scale
+   #:las-x-offset
+   #:las-y-offset
+   #:las-z-offset
    #:las-point-class
    #:las-to-txt))
