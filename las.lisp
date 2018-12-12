@@ -626,7 +626,7 @@ should be correct."
     ;; Update bounding box. Done before unscaling. The spec says: "The
     ;; max and min data fields are the actual unscaled extents of the
     ;; LAS point file data, specified in the coordinate system of the
-    ;; LAS data." This was not clear to me but others softwares LAS
+    ;; LAS data." This was not clear to me but in others softwares LAS
     ;; output use a bounding box in the coordinate system unit.
     (update-bounding-box (las-public-header las) x y z)
     (when unscale-p
