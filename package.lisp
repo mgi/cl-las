@@ -29,6 +29,7 @@
    #:z
    #:intensity
    #:scan-angle
+   #:gps-time
    #:x-t
    #:y-t
    #:z-t
