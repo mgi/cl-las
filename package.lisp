@@ -36,6 +36,8 @@
    #:x-t
    #:y-t
    #:z-t
+   #:colorized-p
+   #:waveform-p
    #:return-number
    #:las-number-of-points
    #:las-number-of-points-by-return

@@ -512,6 +512,12 @@
    (green u2)
    (blue u2)))
 
+(defgeneric colorized-p (point)
+  (:documentation "Is this point colorized?")
+  (:method (point) nil))
+
+(defmethod colorized-p ((point color-mixin)) t)
+
 (define-binary-class nir-mixin ()
   ((nir u2)))
 
@@ -523,6 +529,12 @@
    (x-t float4)
    (y-t float4)
    (z-t float4)))
+
+(defgeneric waveform-p (point)
+  (:documentation "Is this point contains a waveform?")
+  (:method (point) nil))
+
+(defmethod waveform-p ((point waveform-mixin)) t)
 
 (define-binary-class point-data-gps (gps-mixin point-data) ())
 (define-binary-class point-data-color (color-mixin point-data) ())
