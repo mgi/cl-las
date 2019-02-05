@@ -30,6 +30,9 @@
    #:intensity
    #:scan-angle
    #:gps-time
+   #:red
+   #:green
+   #:blue
    #:x-t
    #:y-t
    #:z-t
