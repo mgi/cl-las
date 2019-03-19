@@ -53,7 +53,7 @@
        (offset-to-point-data u4 0)
        (number-of-variable-length-records u4 0)
        (point-data-format-id u1 point-data-id)
-       (point-data-record-length u2 (object-size (nth point-data-id *point-data-classes*)))
+       (point-data-record-length u2 (type-size (nth point-data-id *point-data-classes*)))
        (%legacy-number-of-points u4 0)
        (%legacy-number-of-points-by-return (vector :size 5 :type 'u4) #(0 0 0 0 0))
        (x-scale float8 1)
@@ -229,9 +229,9 @@
                     (make-instance 'projection-vlr
                                    :user-id user-id
                                    :record-id record-id
-                                   :disk-size (+ (object-size 'variable-length-record-header)
-                                                 (object-size directory)
-                                                 (* nkeys (object-size 'geokey-key)))
+                                   :disk-size (+ (type-size 'variable-length-record-header)
+                                                 (type-size directory)
+                                                 (* nkeys (type-size 'geokey-key)))
                                    :directory directory
                                    :keys (loop for i below (number-of-keys directory)
                                                collect (read-value 'geokey-key fd)))))
@@ -239,8 +239,8 @@
         ((string= user-id "LASF_Spec")
          (cond ((and (> record-id 99) (< record-id 355))
                 (make-instance 'wpd-vlr :user-id user-id :record-id record-id
-                                        :disk-size (+ (object-size 'variable-length-record-header)
-                                                      (object-size 'waveform-packet-descriptor))
+                                        :disk-size (+ (type-size 'variable-length-record-header)
+                                                      (type-size 'waveform-packet-descriptor))
                                         :content (read-value 'waveform-packet-descriptor fd)))))))
 
 ;; XXX to be called right after a read-public-header
@@ -273,7 +273,7 @@
   (with-accessors ((record-id vlr-record-id)
                    (user-id vlr-user-id)
                    (disk-size vlr-disk-size)) vlr
-    (let ((sz-after-header (- disk-size (object-size 'variable-length-record-header))))
+    (let ((sz-after-header (- disk-size (type-size 'variable-length-record-header))))
       (cond ((string= user-id "LASF_Projection")
              (with-accessors ((directory projection-vlr-directory)
                               (keys projection-vlr-keys)) vlr
@@ -560,7 +560,7 @@
 (defun make-las (pathname stream)
   (let ((las (make-instance 'las :pathname pathname :stream stream)))
     (when (slot-boundp las '%header)
-      (assert (=  (point-data-record-length (las-public-header las)) (object-size (las-point-class las)))
+      (assert (=  (point-data-record-length (las-public-header las)) (type-size (las-point-class las)))
               () "Point data contains user-specific extra bytes."))
     las))
 
@@ -592,7 +592,7 @@ or just instantiate slots in case of an output stream."
                        evlrecords evlrs)))
               ((output-stream-p stream)
                (let ((pheader (make-instance 'public-header)))
-                 (setf (header-size pheader) (object-size pheader)
+                 (setf (header-size pheader) (type-size pheader)
                        public-header pheader
                        point-class (nth (point-data-format-id pheader) *point-data-classes*)))))))))
 
@@ -613,7 +613,7 @@ should be correct."
 (defun read-point-at (index las &key scale-p)
   "Read a point at a given index."
   (file-position (las-stream las) (+ (offset-to-point-data (las-public-header las))
-                                     (* index (object-size (las-point-class las)))))
+                                     (* index (type-size (las-point-class las)))))
   (read-point las :scale-p scale-p))
 
 (defun update-bounding-box (header x y z)
@@ -653,7 +653,7 @@ should be correct."
 (defun write-point-at (point index las &key unscale-p)
   "Write a point at a given index"
   (file-position (las-stream las) (+ (offset-to-point-data (las-public-header las))
-                                     (* index (object-size (las-point-class las)))))
+                                     (* index (type-size (las-point-class las)))))
   (write-point point las :unscale-p unscale-p))
 
 (defmacro make-get/set (fun-name low-level-name)
@@ -752,9 +752,9 @@ should be correct."
       (multiple-value-bind (directory keys) (make-projection-geokey epsg-code)
         (setf vlrs (cons
                     (make-instance 'projection-vlr :record-id 34735 :user-id user-id
-                                                   :disk-size (+ (object-size 'variable-length-record-header)
-                                                                 (object-size directory)
-                                                                 (* (length keys) (object-size 'geokey-key)))
+                                                   :disk-size (+ (type-size 'variable-length-record-header)
+                                                                 (type-size directory)
+                                                                 (* (length keys) (type-size 'geokey-key)))
                                                    :directory directory :keys keys)
                     (remove user-id vlrs :key #'vlr-user-id :test #'string=))
               ;; Update number of variable length record and offset to data point
