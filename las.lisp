@@ -34,7 +34,7 @@
                 year)))))
 
 (multiple-value-bind (doy year) (current-doy-year)
-  (let ((point-data-id 0))
+  (let ((point-data-id 6))
     (define-binary-class public-header-legacy ()
       ((file-signature (8bit-string :length 4 :terminator #\Nul) "LASF")
        (file-source-id u2 0)
