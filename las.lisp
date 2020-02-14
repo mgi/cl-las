@@ -524,7 +524,7 @@
   ((nir :u16)))
 
 (define-binary-class waveform-mixin ()
-  ((wave-packet-descriptor-index :u8)
+  ((waveform-packet-descriptor-index :u8)
    (byte-offset-to-waveform :u64)
    (waveform-packet-size :u32)
    (return-point-waveform-location :float32)
@@ -689,8 +689,8 @@ should be correct."
     (32 :u32)
     (64 :u64)))
 
-(defun %get-wave-packet-descriptor-of-point (point las)
-  (let ((record-id (+ 99 (wave-packet-descriptor-index point)))
+(defun %get-waveform-packet-descriptor-of-point (point las)
+  (let ((record-id (+ 99 (waveform-packet-descriptor-index point)))
         (vlrs (las-variable-length-records las)))
     (labels ((wpd-key (elt)
                (and (typep elt 'wpd-vlr)
@@ -705,7 +705,7 @@ should be correct."
     1000))
 
 (defmethod waveform-temporal-spacing-of-point ((point waveform-mixin) las)
-  (let ((wpd (%get-wave-packet-descriptor-of-point point las)))
+  (let ((wpd (%get-waveform-packet-descriptor-of-point point las)))
     (when wpd
       (temporal-sample-spacing wpd))))
 
@@ -715,7 +715,7 @@ should be correct."
   (let* ((header (las-public-header las))
          (stream (if (las-wpd-stream las) (las-wpd-stream las) (las-stream las)))
          (evlr-pos (if (las-wpd-stream las) 0 (start-of-evlrs header)))
-         (wpd (%get-wave-packet-descriptor-of-point point las)))
+         (wpd (%get-waveform-packet-descriptor-of-point point las)))
     (when wpd
       (assert (= (* (number-of-samples wpd) (truncate (bits-per-sample wpd) 8))
                  (waveform-packet-size point)))
