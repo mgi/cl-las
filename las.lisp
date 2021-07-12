@@ -357,14 +357,14 @@
 (defmethod scan-direction ((p legacy-point-data))
   (with-slots (gloubiboulga) p
     (if (zerop (ldb (byte 1 6) gloubiboulga))
-        'negative-scan
-        'positive-scan)))
+        :negative-scan
+        :positive-scan)))
 
 (defmethod (setf scan-direction) (value (p legacy-point-data))
   (with-slots (gloubiboulga) p
     (setf (ldb (byte 1 6) gloubiboulga) (ecase value
-                                          (positive-scan 1)
-                                          (negative-scan 0)))))
+                                          (:positive-scan 1)
+                                          (:negative-scan 0)))))
 
 (defmethod edge-of-flight-line-p ((p legacy-point-data))
   (with-slots (gloubiboulga) p
@@ -455,14 +455,14 @@
 (defmethod scan-direction ((p point-data))
   (with-slots (gloubiboulga) p
     (if (zerop (ldb (byte 1 14) gloubiboulga))
-        'negative-scan
-        'positive-scan)))
+        :negative-scan
+        :positive-scan)))
 
 (defmethod (setf scan-direction) (value (p point-data))
   (with-slots (gloubiboulga) p
     (setf (ldb (byte 1 14) gloubiboulga) (ecase value
-                                           (positive-scan 1)
-                                           (negative-scan 0)))))
+                                           (:positive-scan 1)
+                                           (:negative-scan 0)))))
 
 (defmethod edge-of-flight-line-p ((p point-data))
   (with-slots (gloubiboulga) p

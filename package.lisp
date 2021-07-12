@@ -38,6 +38,7 @@
    #:colorized-p
    #:waveform-p
    #:return-number
+   #:scan-direction
    #:las-number-of-points
    #:las-number-of-points-by-return
    #:las-x-scale
