@@ -34,44 +34,42 @@
         (values (reduce #'+ (cons date (subseq month-len 0 (1- month))))
                 year)))))
 
-(multiple-value-bind (doy year) (current-doy-year)
-  (let ((point-data-id 6))
-    (define-binary-class public-header-legacy ()
-      ((file-signature
-        (binary-io.common-datatypes:8bit-string :length 4 :terminator #\Nul) "LASF")
-       (file-source-id :u16 0)
-       (global-encoding global-encoding '(synthetic-return-point))
-       (project-id1 :u32 0)
-       (project-id2 :u16 0)
-       (project-id3 :u16 0)
-       (project-id4 (:vector :size 8 :type :u8) #(0 0 0 0 0 0 0 0))
-       (version-major :u8 1)
-       (version-minor :u8 4)
-       (system-identifier 32char-string "")
-       (generating-software 32char-string "cl-las")
-       (file-creation-doy :u16 doy)
-       (file-creation-year :u16 year)
-       (header-size :u16)
-       (offset-to-point-data :u32 0)
-       (number-of-variable-length-records :u32 0)
-       (point-data-format-id :u8 point-data-id)
-       (point-data-record-length :u16 (type-size (nth point-data-id *point-data-classes*)))
-       (%legacy-number-of-points :u32 0)
-       (%legacy-number-of-points-by-return (:vector :size 5 :type :u32) #(0 0 0 0 0))
-       (x-scale :float64 1)
-       (y-scale :float64 1)
-       (z-scale :float64 1)
-       (x-offset :float64 0)
-       (y-offset :float64 0)
-       (z-offset :float64 0)
-       ;; XXX following slots should remain unbound to be correctly
-       ;; updated in when writing points.
-       (%max-x :float64)
-       (%min-x :float64)
-       (%max-y :float64)
-       (%min-y :float64)
-       (%max-z :float64)
-       (%min-z :float64)))))
+(define-binary-class public-header-legacy ()
+  ((file-signature
+    (binary-io.common-datatypes:8bit-string :length 4 :terminator #\Nul) "LASF")
+   (file-source-id :u16 0)
+   (global-encoding global-encoding '(synthetic-return-point))
+   (project-id1 :u32 0)
+   (project-id2 :u16 0)
+   (project-id3 :u16 0)
+   (project-id4 (:vector :size 8 :type :u8) #(0 0 0 0 0 0 0 0))
+   (version-major :u8 1)
+   (version-minor :u8 4)
+   (system-identifier 32char-string "")
+   (generating-software 32char-string "cl-las")
+   (file-creation-doy :u16)
+   (file-creation-year :u16)
+   (header-size :u16)
+   (offset-to-point-data :u32 0)
+   (number-of-variable-length-records :u32 0)
+   (point-data-format-id :u8)
+   (point-data-record-length :u16)
+   (%legacy-number-of-points :u32 0)
+   (%legacy-number-of-points-by-return (:vector :size 5 :type :u32) #(0 0 0 0 0))
+   (x-scale :float64 1)
+   (y-scale :float64 1)
+   (z-scale :float64 1)
+   (x-offset :float64 0)
+   (y-offset :float64 0)
+   (z-offset :float64 0)
+   ;; XXX following slots should remain unbound to be correctly
+   ;; updated in when writing points.
+   (%max-x :float64)
+   (%min-x :float64)
+   (%max-y :float64)
+   (%min-y :float64)
+   (%max-z :float64)
+   (%min-z :float64)))
 
 (define-binary-class public-header-1.3 (public-header-legacy)
   ((start-of-waveform-data-packet :u64 0)))
@@ -510,9 +508,9 @@
   ((gps-time :float64)))
 
 (define-binary-class color-mixin ()
-  ((red :u16)
-   (green :u16)
-   (blue :u16)))
+  ((red :u16 0)
+   (green :u16 0)
+   (blue :u16 0)))
 
 (defgeneric colorized-p (point)
   (:documentation "Is this point colorized?")
@@ -555,12 +553,12 @@
    (%wpd-stream :initarg :wpd-stream :initform nil :accessor las-wpd-stream
                 :documentation "Stream to an external Wave Packet Descriptor.")
    (%header :accessor las-public-header)
-   (%point-class :accessor las-point-class)
+   (%point-class :initarg :point-class :accessor las-point-class)
    (%vlrecords :initform nil :accessor las-variable-length-records)
    (%evlrecords :initform nil :accessor las-extended-variable-length-records)))
 
-(defun make-las (pathname stream)
-  (let ((las (make-instance 'las :pathname pathname :stream stream)))
+(defun make-las (pathname stream point-class)
+  (let ((las (make-instance 'las :pathname pathname :stream stream :point-class point-class)))
     (when (slot-boundp las '%header)
       (assert (=  (point-data-record-length (las-public-header las)) (type-size (las-point-class las)))
               () "Point data contains user-specific extra bytes."))
@@ -593,10 +591,14 @@ or just instantiate slots in case of an output stream."
                        point-class (nth (point-data-format-id pheader) *point-data-classes*)
                        evlrecords evlrs)))
               ((output-stream-p stream)
-               (let ((pheader (make-instance 'public-header)))
-                 (setf (header-size pheader) (type-size pheader)
-                       public-header pheader
-                       point-class (nth (point-data-format-id pheader) *point-data-classes*)))))))))
+               (multiple-value-bind (doy year) (current-doy-year)
+                 (let ((pheader (make-instance 'public-header
+                                               :file-creation-doy doy
+                                               :file-creation-year year
+                                               :point-data-format-id (position point-class *point-data-classes*)
+                                               :point-data-record-length (type-size point-class))))
+                   (setf (header-size pheader) (type-size pheader)
+                         public-header pheader)))))))))
 
 (defun read-point (las &key scale-p)
   "Read a point in the given LAS. XXX position into the LAS stream
@@ -765,11 +767,13 @@ should be correct."
               (offset-to-point-data header) (+ (header-size (las-public-header las))
                                                (reduce #'+ vlrs :key #'vlr-disk-size)))))))
 
-(defun open-las-file (filename &key (direction :input) if-exists if-does-not-exist)
+(defun open-las-file (filename &key (direction :input) if-exists if-does-not-exist
+                                    (point-class 'point-data))
   (let ((stream (open filename
                       :element-type '(unsigned-byte 8)
-                      :direction direction :if-exists if-exists :if-does-not-exist if-does-not-exist)))
-    (make-las filename stream)))
+                      :direction direction
+                      :if-exists if-exists :if-does-not-exist if-does-not-exist)))
+    (make-las filename stream point-class)))
 
 (defmacro with-las ((las filename &rest options) &body body)
   (let ((abortp (gensym)))
@@ -829,17 +833,26 @@ should be correct."
           (terpri out))))))
 
 (defun write-test (lasfile &optional (nx 500) (ny 500))
-  (with-las (las lasfile :direction :output :if-exists :supersede :if-does-not-exist :create)
+  (with-las (las lasfile :direction :output
+                         :if-exists :supersede
+                         :if-does-not-exist :create
+                         :point-class 'point-data-color)
     (setf (las-number-of-points las) (* nx ny)
           (las-number-of-points-by-return las) (vector (* nx ny) 0 0 0 0 0 0 0 0 0 0 0 0 0 0)
           ;; Lambert 93… because la France!
           (projection las) 2154)
     (loop with epsilon-pi = (/ pi 100)
           for x below nx
+          for red = (rem x 256)
+          for green = (rem (+ x 100) 256)
+          for blue = (rem (+ x 200) 256)
           do (loop for y below ny
                    do (let ((z (round (* 10 (sin (* x epsilon-pi))
                                          (sin (* y epsilon-pi))))))
-                        (write-point-at (make-instance (las-point-class las) :x x :y y :z z)
+                        (write-point-at (make-instance (las-point-class las)
+                                                       :x x :y y :z z
+                                                       :red red :green green
+                                                       :blue blue)
                                         (+ y (* ny x)) las))))
     ;; Bounding box has been updated during point writing so output
     ;; headers last.

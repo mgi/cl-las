@@ -1,6 +1,19 @@
 (defpackage :las
   (:use #:common-lisp #:binary-io)
   (:export
+   ;; point classes
+   #:legacy-point-data
+   #:legacy-point-data-gps
+   #:legacy-point-data-color
+   #:legacy-point-data-color-gps
+   #:legacy-point-data-gps-waveform
+   #:legacy-point-data-color-gps-waveform
+   #:point-data
+   #:point-data-color
+   #:point-data-color-nir
+   #:point-data-waveform
+   #:point-data-color-nir-waveform
+
    #:with-las
    #:read-point
    #:read-point-at
