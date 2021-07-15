@@ -63,7 +63,7 @@
    (y-offset :float64 0)
    (z-offset :float64 0)
    ;; XXX following slots should remain unbound to be correctly
-   ;; updated in when writing points.
+   ;; updated when writing points.
    (%max-x :float64)
    (%min-x :float64)
    (%max-y :float64)
@@ -489,7 +489,11 @@
     :transmission-tower
     :wire-structure-connector
     :bridge-deck
-    :high-noise))
+    :high-noise
+    :overhead-structure
+    :ignored-ground
+    :snow
+    :temporal-exclusion))
 
 (defmethod classification ((p point-data))
   (with-slots (classification) p
@@ -526,9 +530,9 @@
    (byte-offset-to-waveform :u64)
    (waveform-packet-size :u32)
    (return-point-waveform-location :float32)
-   (x-t :float32)
-   (y-t :float32)
-   (z-t :float32)))
+   (dx :float32)
+   (dy :float32)
+   (dz :float32)))
 
 (defgeneric waveform-p (point)
   (:documentation "Is this point contains a waveform?")
@@ -543,7 +547,7 @@
 (define-binary-class legacy-point-data-color-gps-waveform (waveform-mixin gps-mixin color-mixin legacy-point-data) ())
 
 (define-binary-class point-data-color (color-mixin point-data) ())
-(define-binary-class point-data-color-nir (nir-mixin color-mixin point-data) ())
+(define-binary-class point-data-color-nir (nir-mixin point-data-color) ())
 (define-binary-class point-data-waveform (waveform-mixin point-data) ())
 (define-binary-class point-data-color-nir-waveform (waveform-mixin point-data-color-nir) ())
 
@@ -733,9 +737,9 @@ should be correct."
             for i below n
             for j downfrom (1- n)
             do (let ((time (float (- (return-point-waveform-location point) (* i dt)) 1.d0)))
-                 (setf (aref xs j) (+ (x point) (* (x-t point) time))
-                       (aref ys j) (+ (y point) (* (y-t point) time))
-                       (aref zs j) (+ (z point) (* (z-t point) time))
+                 (setf (aref xs j) (+ (x point) (* (dx point) time))
+                       (aref ys j) (+ (y point) (* (dy point) time))
+                       (aref zs j) (+ (z point) (* (dz point) time))
                        (aref times j) (* j dt)
                        (aref intensities j) (read-value (type-from-bits bps) stream)))
             finally (return (make-instance 'waveform :xs xs :ys ys :zs zs :times times
