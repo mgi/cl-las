@@ -45,9 +45,9 @@
    #:red
    #:green
    #:blue
-   #:x-t
-   #:y-t
-   #:z-t
+   #:dx
+   #:dy
+   #:dz
    #:colorized-p
    #:waveform-p
    #:return-number
