@@ -680,6 +680,12 @@ should be correct."
 (make-get/set max-z %max-z)
 (make-get/set min-z %min-z)
 
+(defclass raw-waveform ()
+  ((intensities :initarg :intensities :accessor raw-waveform-intensities)
+   (delta-t :initarg :delta-t :accessor raw-waveform-delta-t))
+  (:documentation "Raw version of a waveform with just its INTENSITIES and its DELTA-T
+temporal spacing."))
+
 (defclass waveform ()
   ((xs :initarg :xs :accessor waveform-xs)
    (ys :initarg :ys :accessor waveform-ys)
@@ -715,35 +721,50 @@ should be correct."
     (when wpd
       (temporal-sample-spacing wpd))))
 
-(defgeneric waveform-of-point (point las))
+(defmethod waveform-address ((point waveform-mixin) las)
+  (let ((evlr-pos (if (las-wpd-stream las) 0 (start-of-evlrs (las-public-header las)))))
+    (+ evlr-pos (byte-offset-to-waveform point))))
 
-(defmethod waveform-of-point ((point waveform-mixin) las)
-  (let* ((header (las-public-header las))
-         (stream (if (las-wpd-stream las) (las-wpd-stream las) (las-stream las)))
-         (evlr-pos (if (las-wpd-stream las) 0 (start-of-evlrs header)))
-         (wpd (%get-waveform-packet-descriptor-of-point point las)))
+(defun get-raw-waveform (address point las)
+  (let ((stream (if (las-wpd-stream las) (las-wpd-stream las) (las-stream las)))
+        (wpd (%get-waveform-packet-descriptor-of-point point las)))
     (when wpd
       (assert (= (* (number-of-samples wpd) (truncate (bits-per-sample wpd) 8))
                  (waveform-packet-size point)))
-      (file-position stream (+ evlr-pos (byte-offset-to-waveform point)))
+      (file-position stream address)
       (loop with n = (number-of-samples wpd)
             with dt = (temporal-sample-spacing wpd)
             with bps = (bits-per-sample wpd)
-            with xs = (make-array n :element-type 'double-float)
-            with ys = (make-array n :element-type 'double-float)
-            with zs = (make-array n :element-type 'double-float)
-            with times = (make-array n)
             with intensities = (make-array n :element-type `(unsigned-byte ,bps))
-            for i below n
-            for j downfrom (1- n)
-            do (let ((time (float (- (return-point-waveform-location point) (* i dt)) 1.d0)))
-                 (setf (aref xs j) (+ (x point) (* (dx point) time))
-                       (aref ys j) (+ (y point) (* (dy point) time))
-                       (aref zs j) (+ (z point) (* (dz point) time))
-                       (aref times j) (* j dt)
-                       (aref intensities j) (read-value (type-from-bits bps) stream)))
-            finally (return (make-instance 'waveform :xs xs :ys ys :zs zs :times times
-                                                     :intensities intensities))))))
+            for i downfrom (1- n)
+            do (setf (aref intensities i) (read-value (type-from-bits bps) stream))
+            finally (return (make-instance 'raw-waveform :intensities intensities
+                                                         :delta-t dt))))))
+
+(defmethod build-waveform ((point waveform-mixin) (raw-waveform raw-waveform))
+  "Build a high level waveform from RAW-WAVEFORM at POINT."
+  (with-accessors ((intensities raw-waveform-intensities)
+                   (delta-t raw-waveform-delta-t)) raw-waveform
+    (loop with n = (array-total-size intensities)
+          with xs = (make-array n :element-type 'double-float)
+          with ys = (make-array n :element-type 'double-float)
+          with zs = (make-array n :element-type 'double-float)
+          with times = (make-array n)
+          for i below n
+          for j downfrom (1- n)
+          do (let ((time (float (- (return-point-waveform-location point)
+                                   (* i delta-t)) 1d0)))
+               (setf (aref xs j) (+ (x point) (* (dx point) time))
+                     (aref ys j) (+ (y point) (* (dy point) time))
+                     (aref zs j) (+ (z point) (* (dz point) time))
+                     (aref times j) (* j delta-t)))
+          finally (return (make-instance 'waveform :xs xs :ys ys :zs zs :times times
+                                                   :intensities intensities)))))
+
+(defgeneric waveform-of-point (point las))
+
+(defmethod waveform-of-point ((point waveform-mixin) las)
+  (build-waveform point (get-raw-waveform (waveform-address point las) point las)))
 
 (defgeneric projection (las)
   (:documentation "Get/set EPSG projection of a LAS."))
