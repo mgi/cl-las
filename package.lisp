@@ -20,9 +20,6 @@
    #:write-headers
    #:write-point
    #:write-point-at
-   #:waveform-address
-   #:get-raw-waveform
-   #:build-waveform
    #:waveform-of-point
    #:waveform-temporal-spacing-of-point
    #:waveform-xs
