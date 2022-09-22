@@ -233,9 +233,9 @@
                                                  (type-size directory)
                                                  (* nkeys (type-size 'geokey-key)))
                                    :directory directory
-                                   :keys (loop for i below (number-of-keys directory)
+                                   :keys (loop for i below nkeys
                                                collect (read-value 'geokey-key fd)))))
-           (34736 (read-value 'geo-double-params-tag fd))))
+           ((34736 34737) :ditch-optional-geokey)))
         ((string= user-id "LASF_Spec")
          (cond ((and (> record-id 99) (< record-id 355))
                 (make-instance 'wpd-vlr :user-id user-id :record-id record-id
