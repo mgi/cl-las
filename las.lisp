@@ -241,7 +241,8 @@
                 (make-instance 'wpd-vlr :user-id user-id :record-id record-id
                                         :disk-size (+ (type-size 'variable-length-record-header)
                                                       (type-size 'waveform-packet-descriptor))
-                                        :content (read-value 'waveform-packet-descriptor fd)))))))
+                                        :content (read-value 'waveform-packet-descriptor fd)))
+               ((= record-id 4) :extra-bytes)))))
 
 ;; XXX to be called right after a read-public-header
 (defun read-vlrs (header fd)
@@ -558,15 +559,12 @@
                 :documentation "Stream to an external Wave Packet Descriptor.")
    (%header :accessor las-public-header)
    (%point-class :initarg :point-class :accessor las-point-class)
+   (%extra-bytes :initarg :extra-bytes :accessor las-extra-bytes)
    (%vlrecords :initform nil :accessor las-variable-length-records)
    (%evlrecords :initform nil :accessor las-extended-variable-length-records)))
 
 (defun make-las (pathname stream point-class)
-  (let ((las (make-instance 'las :pathname pathname :stream stream :point-class point-class)))
-    (when (slot-boundp las '%header)
-      (assert (=  (point-data-record-length (las-public-header las)) (type-size (las-point-class las)))
-              () "Point data contains user-specific extra bytes."))
-    las))
+  (make-instance 'las :pathname pathname :stream stream :point-class point-class))
 
 (defmethod initialize-instance :after ((object las) &key)
   "After las object creation, read slots' data from the input stream
@@ -578,6 +576,7 @@ or just instantiate slots in case of an output stream."
                        (public-header las-public-header)
                        (vlrecords las-variable-length-records)
                        (point-class las-point-class)
+                       (extra-bytes las-extra-bytes)
                        (evlrecords las-extended-variable-length-records)) object
         (cond ((input-stream-p stream)
                (multiple-value-bind (pheader vlrs evlrs) (read-headers stream)
@@ -593,6 +592,8 @@ or just instantiate slots in case of an output stream."
                  (setf public-header pheader
                        vlrecords vlrs
                        point-class (nth (point-data-format-id pheader) *point-data-classes*)
+                       extra-bytes (- (point-data-record-length public-header)
+                                      (type-size point-class))
                        evlrecords evlrs)))
               ((output-stream-p stream)
                (multiple-value-bind (doy year) (current-doy-year)
@@ -621,7 +622,8 @@ should be correct."
 (defun read-point-at (index las &key scale-p)
   "Read a point at a given index."
   (file-position (las-stream las) (+ (offset-to-point-data (las-public-header las))
-                                     (* index (type-size (las-point-class las)))))
+                                     (* index (+ (type-size (las-point-class las))
+                                                 (las-extra-bytes las)))))
   (read-point las :scale-p scale-p))
 
 (defun update-bounding-box (header x y z)
