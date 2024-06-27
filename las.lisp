@@ -136,7 +136,9 @@
 
 (defgeneric number-of-evlrs (header)
   (:documentation "Unified number of EVLRs between new and before
-  1.4."))
+  1.4.")
+  ;; There is no EVLRs by default.
+  (:method (header) 0))
 
 (defmethod number-of-evlrs ((header public-header-1.3))
   "According to the specs, there is only one extended variable length
