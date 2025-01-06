@@ -216,10 +216,10 @@
   ((content :initarg :content :accessor wpd-vlr-content))
   (:documentation "Waveform packet descriptor VLR"))
 
-(defclass projection-vlr (vlr-mixin)
-  ((directory :initarg :directory :accessor projection-vlr-directory)
-   (keys :initarg :keys :accessor projection-vlr-keys))
-  (:documentation "Projection VLR"))
+(defclass geotiff-projection-vlr (vlr-mixin)
+  ((directory :initarg :directory :accessor geotiff-projection-vlr-directory)
+   (keys :initarg :keys :accessor geotiff-projection-vlr-keys))
+  (:documentation "GeoTIFF projection VLR"))
 
 (defun read-vlr-content (fd user-id record-id)
   (cond ((string= user-id "LASF_Projection")
@@ -228,7 +228,7 @@
            (2112 :not-yet-ogc-coord-system-wkt)
            (34735 (let* ((directory (read-value 'geokey-directory fd))
                          (nkeys (number-of-keys directory)))
-                    (make-instance 'projection-vlr
+                    (make-instance 'geotiff-projection-vlr
                                    :user-id user-id
                                    :record-id record-id
                                    :disk-size (+ (type-size 'variable-length-record-header)
@@ -278,8 +278,8 @@
                    (disk-size vlr-disk-size)) vlr
     (let ((sz-after-header (- disk-size (type-size 'variable-length-record-header))))
       (cond ((string= user-id "LASF_Projection")
-             (with-accessors ((directory projection-vlr-directory)
-                              (keys projection-vlr-keys)) vlr
+             (with-accessors ((directory geotiff-projection-vlr-directory)
+                              (keys geotiff-projection-vlr-keys)) vlr
                (write-value 'variable-length-record-header stream
                             (make-instance 'variable-length-record-header
                                            :record-id record-id :user-id user-id
@@ -756,7 +756,7 @@ should be correct."
   (let ((vlr-projection (find "LASF_Projection" (las-variable-length-records las)
                               :key #'vlr-user-id :test #'string=)))
     (when vlr-projection
-      (get-projection-code (projection-vlr-keys vlr-projection)))))
+      (get-projection-code (geotiff-projection-vlr-keys vlr-projection)))))
 
 (defmethod (setf projection) (epsg-code (las las))
   (with-accessors ((header las-public-header)
@@ -764,11 +764,12 @@ should be correct."
     (let ((user-id "LASF_Projection"))
       (multiple-value-bind (directory keys) (make-projection-geokey epsg-code)
         (setf vlrs (cons
-                    (make-instance 'projection-vlr :record-id 34735 :user-id user-id
-                                                   :disk-size (+ (type-size 'variable-length-record-header)
-                                                                 (type-size directory)
-                                                                 (* (length keys) (type-size 'geokey-key)))
-                                                   :directory directory :keys keys)
+                    (make-instance 'geotiff-projection-vlr
+                                   :record-id 34735 :user-id user-id
+                                   :disk-size (+ (type-size 'variable-length-record-header)
+                                                 (type-size directory)
+                                                 (* (length keys) (type-size 'geokey-key)))
+                                   :directory directory :keys keys)
                     (remove user-id vlrs :key #'vlr-user-id :test #'string=))
               ;; Update number of variable length record and offset to data point
               (number-of-variable-length-records header) (length vlrs)
