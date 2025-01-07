@@ -10,6 +10,9 @@
 (define-binary-type 32char-string ()
   (binary-io.common-datatypes:8bit-string :length 32 :terminator #\Nul))
 
+(define-binary-type variable-string ()
+  (binary-io.common-datatypes:8bit-string :terminator #\Nul))
+
 (defparameter *point-data-classes*
   '(legacy-point-data
     legacy-point-data-gps
@@ -221,11 +224,21 @@
    (keys :initarg :keys :accessor geotiff-projection-vlr-keys))
   (:documentation "GeoTIFF projection VLR"))
 
+(defclass ogc-cs-projection-vlr (vlr-mixin)
+  ((string :initarg :string :accessor ogc-cs-projection-vlr-string))
+  (:documentation "OGC Coordinate System projection VLR"))
+
 (defun read-vlr-content (fd user-id record-id)
   (cond ((string= user-id "LASF_Projection")
          (case record-id
            (2111 :not-yet-ogc-math-transform-wkt)
-           (2112 :not-yet-ogc-coord-system-wkt)
+           (2112 (let ((string (read-value 'variable-string fd)))
+                   (make-instance 'ogc-cs-projection-vlr
+                                  :user-id user-id
+                                  :record-id record-id
+                                  :disk-size (+ (type-size 'variable-length-record-header)
+                                                (length string))
+                                  :string string)))
            (34735 (let* ((directory (read-value 'geokey-directory fd))
                          (nkeys (number-of-keys directory)))
                     (make-instance 'geotiff-projection-vlr
