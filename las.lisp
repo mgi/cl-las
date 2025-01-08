@@ -570,8 +570,8 @@
 (defclass las ()
   ((%pathname :initarg :pathname :reader las-pathname)
    (%stream :initarg :stream :reader las-stream)
-   (%wpd-stream :initarg :wpd-stream :initform nil :accessor las-wpd-stream
-                :documentation "Stream to an external Wave Packet Descriptor.")
+   (%wdp-stream :initarg :wdp-stream :initform nil :accessor las-wdp-stream
+                :documentation "Stream to external Waveform Data Packets.")
    (%header :accessor las-public-header)
    (%point-class :initarg :point-class :accessor las-point-class)
    (%extra-bytes :initarg :extra-bytes :accessor las-extra-bytes)
@@ -587,7 +587,7 @@ or just instantiate slots in case of an output stream."
   (let ((stream (las-stream object)))
     (when (streamp stream)
       (with-accessors ((pathname las-pathname)
-                       (wpd-stream las-wpd-stream)
+                       (wdp-stream las-wdp-stream)
                        (public-header las-public-header)
                        (vlrecords las-variable-length-records)
                        (point-class las-point-class)
@@ -597,10 +597,10 @@ or just instantiate slots in case of an output stream."
                (multiple-value-bind (pheader vlrs evlrs) (read-headers stream)
                  ;; open external WDP if needed
                  (when (member 'external-wave-data (global-encoding pheader))
-                   (let ((wpd-name (merge-pathnames (make-pathname :type "wdp") pathname)))
-                     (if (probe-file wpd-name)
-                         (setf wpd-stream (open wpd-name :element-type '(unsigned-byte 8)))
-                         (error "Can't find ~a waveform file" wpd-name))))
+                   (let ((wdp-name (merge-pathnames (make-pathname :type "wdp") pathname)))
+                     (if (probe-file wdp-name)
+                         (setf wdp-stream (open wdp-name :element-type '(unsigned-byte 8)))
+                         (error "Can't find ~a waveform file" wdp-name))))
                  ;; go to data point in stream
                  (file-position stream (offset-to-point-data pheader))
                  ;; fill missing slots
@@ -736,8 +736,8 @@ should be correct."
 
 (defmethod waveform-of-point ((point waveform-mixin) las)
   (let* ((header (las-public-header las))
-         (stream (if (las-wpd-stream las) (las-wpd-stream las) (las-stream las)))
-         (evlr-pos (if (las-wpd-stream las) 0 (start-of-evlrs header)))
+         (stream (if (las-wdp-stream las) (las-wdp-stream las) (las-stream las)))
+         (evlr-pos (if (las-wdp-stream las) 0 (start-of-evlrs header)))
          (wpd (%get-waveform-packet-descriptor-of-point point las)))
     (when wpd
       (assert (= (* (number-of-samples wpd) (truncate (bits-per-sample wpd) 8))
@@ -805,7 +805,7 @@ should be correct."
             (multiple-value-prog1
               (unwind-protect
                    (progn,@body)
-                (when (las-wpd-stream ,las) (close (las-wpd-stream ,las))))
+                (when (las-wdp-stream ,las) (close (las-wdp-stream ,las))))
               (setq ,abortp nil))
          (when (las-stream ,las) (close (las-stream ,las) :abort ,abortp))))))
 
