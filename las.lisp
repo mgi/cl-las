@@ -213,7 +213,8 @@
    (record-id :initarg :record-id :accessor vlr-record-id)
    (disk-size :initarg :disk-size :accessor vlr-disk-size))
   (:documentation "More user-friendly class for variable length record
-  then the underlying binary class."))
+  then the underlying binary class.  It is used for both VLR and
+  Extended VLR (see `read-vlr-content')."))
 
 (defclass wpd-vlr (vlr-mixin)
   ((content :initarg :content :accessor wpd-vlr-content))
@@ -275,15 +276,14 @@
     (unless (zerop n) (file-position fd (start-of-evlrs header)))
     (dotimes (i n (reverse res))
       (let* ((evlr (read-value 'extended-variable-length-record-header fd))
-             (next-pos (+ (file-position fd) (record-length-after-header evlr))))
-        (push evlr res)
+             (next-pos (+ (file-position fd) (record-length-after-header evlr)))
+             (content (read-vlr-content fd (user-id evlr) (record-id evlr))))
+        (push content res)
         (file-position fd next-pos)))))
 
 (defun read-headers (fd)
-  (let* ((header (read-public-header fd))
-         (vlrecords (read-vlrs header fd))
-         (evlrecords (read-evlrs header fd)))
-    (values header vlrecords evlrecords)))
+  (let ((header (read-public-header fd)))
+    (values header (read-vlrs header fd) (read-evlrs header fd))))
 
 (defun write-vlr (stream vlr)
   (with-accessors ((record-id vlr-record-id)
@@ -324,7 +324,7 @@
       (write-vlr stream vlr))
     ;; Just to be safe, enforce valid offset-to-point-data: update it
     ;; after having wrote header+vlrs and then rewrite the updated
-    ;; header
+    ;; header.
     (setf (offset-to-point-data pheader) (file-position stream))
     (write-public-header stream pheader)
     ;; ELVRS
@@ -714,12 +714,13 @@ should be correct."
 
 (defun %get-waveform-packet-descriptor-of-point (point las)
   (let ((record-id (+ 99 (waveform-packet-descriptor-index point)))
-        (vlrs (las-variable-length-records las)))
+        (all-vlrs (append (las-variable-length-records las)
+                          (las-extended-variable-length-records las))))
     (labels ((wpd-key (elt)
                (and (typep elt 'wpd-vlr)
                     (vlr-record-id elt))))
       (unless (= record-id 99)
-        (wpd-vlr-content (find record-id vlrs :key #'wpd-key))))))
+        (wpd-vlr-content (find record-id all-vlrs :key #'wpd-key))))))
 
 (defgeneric waveform-temporal-spacing-of-point (point las)
   (:documentation "Waveform temporal spacing in picoseconds (ps).")
