@@ -733,7 +733,8 @@ should be correct."
     (when wpd
       (temporal-sample-spacing wpd))))
 
-(defgeneric waveform-of-point (point las))
+(defgeneric waveform-of-point (point las)
+  (:documentation "Return the waveform of POINT in LAS."))
 
 (defmethod waveform-of-point ((point waveform-mixin) las)
   (let* ((header (las-public-header las))
@@ -763,14 +764,24 @@ should be correct."
             finally (return (make-instance 'waveform :xs xs :ys ys :zs zs :times times
                                                      :intensities intensities))))))
 
+(defgeneric %projection (vlr)
+  (:documentation "Get the projection from a VLR"))
+
+(defmethod %projection ((vlr geotiff-projection-vlr))
+  (get-projection-code (geotiff-projection-vlr-keys vlr)))
+
+(defmethod %projection ((vlr ogc-cs-projection-vlr))
+  (ogc-cs-projection-vlr-string vlr))
+
 (defgeneric projection (las)
-  (:documentation "Get/set EPSG projection of a LAS."))
+  (:documentation "Get/set EPSG projection of a LAS.  The return value could either be an
+EPSG code (an integer) or a WKT string."))
 
 (defmethod projection ((las las))
   (let ((vlr-projection (find "LASF_Projection" (las-variable-length-records las)
                               :key #'vlr-user-id :test #'string=)))
     (when vlr-projection
-      (get-projection-code (geotiff-projection-vlr-keys vlr-projection)))))
+      (%projection vlr-projection))))
 
 (defmethod (setf projection) (epsg-code (las las))
   (with-accessors ((header las-public-header)
